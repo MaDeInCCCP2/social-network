@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Лента — SocialNet</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<div class="page-wrap">
+    <header class="top-bar">
+        <span class="top-bar__logo">SocialNet</span>
+        <span class="top-bar__user">Привет, <strong>{{ user.username }}</strong>!</span>
+        <a href="{{ url_for('logout') }}" class="btn-logout">Выйти</a>
+    </header>
+
+    <main class="feed">
+        <p class="feed__placeholder">Здесь будет лента новостей.</p>
+    </main>
+</div>
+</body>
+</html>
+

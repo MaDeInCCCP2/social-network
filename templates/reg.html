@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Регистрация — SocialNet</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+<div class="auth-card">
+    <h1 class="auth-title">Создать аккаунт</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="{{ url_for('register') }}" novalidate>
+        <label for="username">Имя пользователя</label>
+        <input id="username" name="username" type="text"
+               placeholder="Минимум 3 символа" required
+               value="{{ request.form.get('username', '') }}">
+
+        <label for="email">E-mail</label>
+        <input id="email" name="email" type="email"
+               placeholder="example@mail.com" required
+               value="{{ request.form.get('email', '') }}">
+
+        <label for="password">Пароль</label>
+        <input id="password" name="password" type="password"
+               placeholder="Минимум 6 символов" required>
+
+        <label for="confirm">Повторите пароль</label>
+        <input id="confirm" name="confirm" type="password"
+               placeholder="Повторите пароль" required>
+
+        <button type="submit" class="btn-primary">Зарегистрироваться</button>
+    </form>
+
+    <p class="auth-footer">
+        Уже есть аккаунт? <a href="{{ url_for('login') }}">Войти</a>
+    </p>
+</div>
+</body>
+</html>
+
