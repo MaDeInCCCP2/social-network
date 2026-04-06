@@ -21,6 +21,7 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
@@ -215,6 +216,26 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+@app.route('/friends')
+@login_required
+def friends():
+    return render_template('friends.html', user=current_user)
+
+@app.route('/messages')
+@login_required
+def messages():
+    return render_template('messages.html', user=current_user)
+
+@app.route('/groups')
+@login_required
+def groups():
+    return render_template('group.html', user=current_user)
+
+@app.route('/settings')
+@login_required
+def settings():
+    return render_template('settings.html', user=current_user)
 
 
 if __name__ == '__main__':
