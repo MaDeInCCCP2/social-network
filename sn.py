@@ -82,6 +82,15 @@ class Message(db.Model):
     sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_messages', lazy=True))
     recipient = db.relationship('User', foreign_keys=[receiver_id], backref=db.backref('received_messages', lazy=True))
 
+class Profile(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    bio = db.Column(db.Text, nullable=True)
+    avatar = db.Column(db.String(256), nullable=True)
+    city = db.Column(db.String(128))
+    registration_date = db.Column(db.DateTime, default=datetime.utcnow)
+    user = db.relationship('User', backref=db.backref('profile', uselist=False))
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -273,6 +282,13 @@ def messages_userid(user_id):
     messages = messages + Message.query.filter_by(sender_id=user_id, receiver_id=current_user.id).all()
     messages = sorted(messages, key=lambda x: x.timestamp)
     return render_template('messages.html', user=current_user, messages=messages)
+
+@app.route('/profile/<int:user_id>')
+@login_required
+def profile(user_id):
+    u = User.query.get_or_404(user_id)
+    p = Post.query.filter_by(user_id=user_id).order_by(Post.timestamp.desc()).all()
+    return render_template('profile.html', user=current_user, other_user=u, posts=p)
 
 
 @app.route('/groups')

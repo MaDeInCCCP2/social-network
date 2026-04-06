@@ -47,7 +47,7 @@
                         <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                         <circle cx="12" cy="7" r="4"></circle>
                     </svg>
-                    XAM-Профиль
+                    XAM-Настройки
                 </li>
             </a>
         </ul>
@@ -62,16 +62,18 @@
             <input type="text" name="q" placeholder="Поиск в XAM..." value="{{ query }}">
         </form>
         <div class="user-controls">
-            <div class="user-profile">
-                <span class="username">{{ user.username }}</span>
-                <div class="avatar">{{ user.username[0] }}</div>
-            </div>
             <a href="{{ url_for('logout') }}" class="btn-logout" title="Выход">
                 <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none">
                     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                     <polyline points="16 17 21 12 16 7"></polyline>
                     <line x1="21" y1="12" x2="9" y2="12"></line>
                 </svg>
+            </a>
+            <a href="{{ url_for('profile', user_id=user.id) }}" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 12px;">
+                <div class="user-profile">
+                    <div class="avatar">{{ user.username[0]|upper }}</div>
+                    <span style="font-weight: 500;">{{ user.username }}</span>
+                </div>
             </a>
         </div>
     </header>
@@ -83,13 +85,17 @@
             {% if result %}
                 {% for u in result %}
                     <div class="glass-panel search-result-card">
-                        <div class="search-user-info">
-                            <div class="avatar-large">{{ u.username[0] }}</div>
-                            <div class="search-user-details">
-                                <span class="search-username">{{ u.username }}</span>
-                                <span class="search-status">Пользователь XAM</span>
+                        <a href="{{ url_for('profile', user_id=u.id) }}" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 20px;">
+                            <div class="search-user-info">
+                                <div class="avatar-large" style="width: 60px; height: 60px; border-radius: 50%; background: var(--gradient-glow); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; color: #000;">
+                                    {{ u.username[0]|upper }}
+                                </div>
+                                <div class="search-user-details">
+                                    <span class="search-username" style="font-size: 1.1rem; font-weight: 600;">{{ u.username }}</span>
+                                    <span class="search-status" style="font-size: 0.85rem; color: var(--text-muted);">Пользователь XAM</span>
+                                </div>
                             </div>
-                        </div>
+                        </a>
                         <div class="search-actions">
                             <a href="{{ url_for('messages_userid', user_id=u.id) }}" class="btn-primary">Написать</a>
                         </div>
