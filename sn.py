@@ -1,4 +1,5 @@
 import flask
+from datetime import datetime
 import flask_login
 import flask_sqlalchemy
 from flask import Flask
@@ -7,6 +8,7 @@ from flask import redirect
 from flask import request
 from flask import url_for
 from flask import flash
+from flask import send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_login import UserMixin
@@ -26,6 +28,10 @@ db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+@app.route('/image/<path:filename>')
+def serve_image(filename):
+    return send_from_directory('image', filename)
+
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -33,6 +39,30 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
+
+class Post(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    author = db.relationship('User', backref=db.backref('posts', lazy=True))
+    likes = db.relationship('Like', backref='post', lazy=True, cascade="all, delete-orphan")
+    comments = db.relationship('Comment', backref='post', lazy=True, cascade="all, delete-orphan", order_by="Comment.timestamp.asc()")
+
+class Like(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+
+class Comment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    text = db.Column(db.Text, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    
+    author = db.relationship('User')
 
 
 @login_manager.user_loader
@@ -43,7 +73,47 @@ def load_user(user_id):
 @app.route('/')
 @login_required
 def index():
-    return render_template('index.html', user=current_user)
+    posts = Post.query.order_by(Post.timestamp.desc()).all()
+    liked_post_ids = [like.post_id for like in Like.query.filter_by(user_id=current_user.id).all()]
+    return render_template('index.html', user=current_user, posts=posts, liked_post_ids=liked_post_ids)
+
+@app.route('/new_post', methods=['POST'])
+@login_required
+def new_post():
+    text = request.form.get('content', '').strip()
+    if text:
+        post = Post(text=text, user_id=current_user.id)
+        db.session.add(post)
+        db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/like/<int:post_id>', methods=['POST'])
+@login_required
+def like_post(post_id):
+    like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+    if like:
+        db.session.delete(like)
+    else:
+        new_like = Like(user_id=current_user.id, post_id=post_id)
+        db.session.add(new_like)
+    db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/comment/<int:post_id>', methods=['POST'])
+@login_required
+def comment_post(post_id):
+    text = request.form.get('content', '').strip()
+    if text:
+        comment = Comment(text=text, user_id=current_user.id, post_id=post_id)
+        db.session.add(comment)
+        db.session.commit()
+    return redirect(url_for('index'))
+
+
+@app.route('/terms')
+def terms():
+    from flask import send_from_directory
+    return send_from_directory(app.root_path, 'Правила пользования ХАМ.pdf')
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -59,6 +129,11 @@ def register():
 
         if username == '' or email == '' or password == '':
             flash('заполните все поля!!!', 'danger')
+            return render_template('reg.html')
+            
+        agree_terms = request.form.get('agree_terms')
+        if not agree_terms:
+            flash('Вы должны принять пользовательское соглашение', 'danger')
             return render_template('reg.html')
 
         if len(password) < 6:

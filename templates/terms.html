@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>XAM — Пользовательское соглашение</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        body {
+            background-color: var(--bg-body, #121212);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .terms-card {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            max-height: 85vh;
+            padding: 0; /* Override glass-panel padding to make header/footer flush */
+            overflow: hidden;
+        }
+        .terms-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 25px 30px;
+            background: rgba(0, 0, 0, 0.25);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .terms-header img {
+            height: 40px;
+        }
+        .terms-header h1 {
+            margin: 0;
+            color: #ffffff;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+        .terms-body {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 30px;
+            text-align: left;
+            font-family: var(--font-family, sans-serif);
+            white-space: pre-wrap;
+            line-height: 1.7;
+            color: #d1d1d1;
+            font-size: 0.95rem;
+        }
+        
+        /* Modern Scrollbar */
+        .terms-body::-webkit-scrollbar {
+            width: 6px;
+        }
+        .terms-body::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .terms-body::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+        }
+        .terms-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .terms-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            padding: 20px 30px;
+            background: rgba(0, 0, 0, 0.25);
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .btn-outline {
+            color: var(--text-main);
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="glass-panel terms-card">
+        
+        <div class="terms-header">
+            <img src="/image/T_Logo_XAM.png" alt="XAM Logo">
+            <h1>Пользовательское соглашение</h1>
+        </div>
+
+        <div class="terms-body">{{ terms_text }}</div>
+        
+        <div class="terms-footer">
+            <a href="javascript:window.close();" class="btn-outline">Закрыть вкладку</a>
+            <a href="{{ url_for('index') }}" class="btn-primary" style="padding: 10px 25px; text-decoration: none; line-height: normal;">Перейти на XAM</a>
+        </div>
+
+    </div>
+</body>
+</html>
