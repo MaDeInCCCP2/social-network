@@ -15,7 +15,8 @@ app.config['SECRET_KEY'] = 'qwerty123'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///social.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-app.config['UPLOAD_FOLDER'] = 'C:/Users/redfy/Documents/social-network/instance/images'
+app.config['UPLOAD_IMAGE'] = 'C:/Users/redfy/Documents/social-network/instance/images'
+app.config['UPLOAD_VIDEO'] = 'C:/Users/redfy/Documents/social-network/instance/videos'
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
@@ -87,15 +88,23 @@ def index():
 def new_post():
     text = request.form.get('content', '').strip()
     file = request.files.get('image')
+    video = request.files.get('video')
     image_filename = None
+    video_filename = None
     if file and file.filename != '':
         ext = file.filename.split('.')[-1].lower()
         if ext in ['jpg', 'jpeg', 'png', 'gif']:
             image_filename = str(uuid.uuid4()) + "." + ext
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], image_filename))
+            file.save(os.path.join(app.config['UPLOAD_IMAGE'], image_filename))
+    
+    if video and video.filename != '':
+        ext = video.filename.split('.')[-1].lower()
+        if ext in ['mp4', 'avi', 'mov', 'mkv']:
+            video_filename = str(uuid.uuid4()) + "." + ext
+            video.save(os.path.join(app.config['UPLOAD_VIDEO'], video_filename))
 
-    if text or image_filename:
-        post = Post(text=text, user_id=current_user.id, photo=image_filename)
+    if text or image_filename or video_filename:
+        post = Post(text=text, user_id=current_user.id, photo=image_filename, video=video_filename)
         db.session.add(post)
         db.session.commit()
     return redirect(url_for('index'))
@@ -124,7 +133,15 @@ def comment_post(post_id):
 
 @app.route('/image/<path:filename>')
 def serve_image(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(app.config['UPLOAD_IMAGE'], filename)
+
+@app.route('/video/<path:filename>')
+def serve_video(filename):
+    return send_from_directory(app.config['UPLOAD_VIDEO'], filename)
+
+@app.route('/branding/<path:filename>')
+def serve_branding(filename):
+    return send_from_directory(os.path.join(app.root_path, 'image'), filename)
 
 
 @app.route('/terms')

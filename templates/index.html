@@ -104,11 +104,15 @@
                                     <input type="file" name="image" id="image-upload" accept="image/*"
                                         style="display: none;" onchange="updateFileName(this)">
                                 </label>
-                                <svg class="tool-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2">
-                                    <polygon points="23 7 16 12 23 17 23 7"></polygon>
-                                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                                </svg>
+                                <label for="video-upload" class="tool-icon-label">
+                                    <svg class="tool-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                        stroke="currentColor" stroke-width="2">
+                                        <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                    </svg>
+                                    <input type="file" name="video" id="video-upload" accept="video/*"
+                                        style="display: none;" onchange="updateFileName(this)">
+                                </label>
                                 <span id="file-name-display" class="file-name-hint"></span>
                             </div>
                             <button type="submit" class="btn-primary" style="padding: 8px 20px;">Опубликовать</button>
@@ -134,6 +138,11 @@
                     <div class="post-photo-container">
                         <img src="{{ url_for('serve_image', filename=post.photo) }}" alt="Post photo"
                             class="post-photo">
+                    </div>
+                    {% endif %}
+                    {% if post.video %}
+                    <div class="post-video-container">
+                        <video src="{{ url_for('serve_video', filename=post.video) }}" class="post-video" controls></video>
                     </div>
                     {% endif %}
                     <div class="post-actions" style="margin-bottom: 8px;">
