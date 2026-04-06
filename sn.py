@@ -70,6 +70,18 @@ class Video(db.Model):
     
     author = db.relationship('User', backref=db.backref('videos', lazy=True))
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    text = db.Column(db.Text, nullable=False)
+    image = db.Column(db.String(256), nullable=True)
+    video = db.Column(db.String(256), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_messages', lazy=True))
+    recipient = db.relationship('User', foreign_keys=[receiver_id], backref=db.backref('received_messages', lazy=True))
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -142,6 +154,7 @@ def serve_video(filename):
 @app.route('/branding/<path:filename>')
 def serve_branding(filename):
     return send_from_directory(os.path.join(app.root_path, 'image'), filename)
+    
 
 
 @app.route('/terms')
@@ -244,6 +257,24 @@ def friends():
 def messages():
     return render_template('messages.html', user=current_user)
 
+@app.route('/messages/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def messages_userid(user_id):
+    if request.method == 'POST':
+        text = request.form.get('message', '').strip()
+        if text:
+            new_msg = Message()
+            new_msg.sender_id = current_user.id
+            new_msg.receiver_id = user_id
+            new_msg.text = text
+            db.session.add(new_msg)
+            db.session.commit()
+    messages = Message.query.filter_by(sender_id=current_user.id, receiver_id=user_id).all()
+    messages = messages + Message.query.filter_by(sender_id=user_id, receiver_id=current_user.id).all()
+    messages = sorted(messages, key=lambda x: x.timestamp)
+    return render_template('messages.html', user=current_user, messages=messages)
+
+
 @app.route('/groups')
 @login_required
 def groups():
@@ -254,6 +285,14 @@ def groups():
 def settings():
     return render_template('settings.html', user=current_user)
 
+@app.route('/search')
+@login_required
+def search():
+    query = request.args.get('q', '').strip()
+    result = []
+    if query:
+        result = User.query.filter(User.username.ilike(f'%{query}%')).all()
+    return render_template('search.html', user=current_user, query=query, result=result)
 
 if __name__ == '__main__':
     with app.app_context():

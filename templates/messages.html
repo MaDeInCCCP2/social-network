@@ -5,60 +5,202 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>XAM — Сообщения</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .chat-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: calc(100vh - 160px);
+            gap: 20px;
+        }
+
+        .chat-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+            padding-right: 8px;
+        }
+
+        .chat-window {
+            display: flex;
+            flex-direction: column;
+            background: rgba(10, 10, 15, 0.4);
+            border-radius: 24px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.02);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .messages-area {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            position: relative;
+        }
+
+        .msg-sent {
+            align-self: flex-end;
+            background: var(--gradient-glow);
+            color: #fff;
+            border-bottom-right-radius: 4px;
+        }
+
+        .msg-received {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+            border-bottom-left-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+        .chat-input-area {
+            padding: 20px 24px;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 12px;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 14px;
+            padding: 12px 16px;
+            color: #fff;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary-cyan);
+        }
+
+        .dialog-card {
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            text-decoration: none;
+            color: inherit;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid transparent;
+            border-radius: 16px;
+        }
+
+        .dialog-card:hover, .dialog-card.active {
+            background: rgba(0, 240, 255, 0.08);
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+
+        .dialog-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+
+        .dialog-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .dialog-last {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+    </style>
 </head>
 <body>
     <div class="page-wrap">
-        <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-logo">
-                <img src="/image/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
+                <img src="/branding/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
             </div>
             <ul class="nav-links">
                 <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2-z"></path>
                             <polyline points="9 22 9 12 15 12 15 22"></polyline>
                         </svg>
                         XAM-Лента
                     </li>
                 </a>
-                <li class="nav-item active">
-                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                    </svg>
-                    XAM-Общения
-                </li>
-                <li class="nav-item">
-                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                    </svg>
-                    XAM-Друзья
-                </li>
-                <li class="nav-item">
-                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                        <circle cx="12" cy="7" r="4"></circle>
-                    </svg>
-                    XAM-Профиль
-                </li>
+                <a href="{{ url_for('messages') }}" style="text-decoration: none; color: inherit;">
+                    <li class="nav-item active">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                        </svg>
+                        XAM-Общения
+                    </li>
+                </a>
+                <a href="{{ url_for('friends') }}" style="text-decoration: none; color: inherit;">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        XAM-Друзья
+                    </li>
+                </a>
+                <a href="{{ url_for('settings') }}" style="text-decoration: none; color: inherit;">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                        XAM-Профиль
+                    </li>
+                </a>
             </ul>
         </aside>
 
-        <!-- Top Navigation Area -->
         <header class="top-bar">
-            <div class="search-bar">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a0a0ab" stroke-width="2">
+            <form class="search-bar" action="{{ url_for('search') }}" method="GET">
+                <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none">
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" placeholder="Поиск диалогов...">
-            </div>
+                <input type="text" name="q" placeholder="Поиск в XAM..." value="{{ query }}">
+            </form>
             <div class="user-controls">
-                <a href="{{ url_for('logout') }}" class="btn-primary" style="padding: 8px 16px; font-size: 0.9rem;">Выйти</a>
+                <a href="{{ url_for('logout') }}" class="btn-logout" title="Выход">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" fill="none">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                        <polyline points="16 17 21 12 16 7"></polyline>
+                        <line x1="21" y1="12" x2="9" y2="12"></line>
+                    </svg>
+                </a>
                 <div class="user-profile">
                     <div class="avatar">{{ user.username[0]|upper }}</div>
                     <span style="font-weight: 500;">{{ user.username }}</span>
@@ -66,21 +208,93 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="main-content">
-            <div class="feed">
-                <h2 style="margin-bottom: 24px; font-weight: 600; background: var(--gradient-glow); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; display: inline-block;">Мои переписки</h2>
-                
-                <div class="glass-panel" style="padding: 32px; text-align: center; color: var(--text-muted); min-height: 400px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 20px; opacity: 0.3;">
-                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                    </svg>
-                    <p style="font-size: 1.1rem;">У вас пока нет активных диалогов</p>
-                    <p style="font-size: 0.9rem; margin-top: 8px;">Выберите друга из списка, чтобы начать общение</p>
-                    <button class="btn-primary" style="margin-top: 24px; padding: 10px 24px;">Найти друзей</button>
+            <div class="chat-container">
+                <!-- Left Sidebar: Last Chats -->
+                <div class="chat-list">
+                    <h2 style="font-size: 1.2rem; margin-bottom: 8px;">Диалоги</h2>
+                    
+                    {# Собираем все сообщения и фильтруем вручную для совместимости #}
+                    {% set all_messages = (user.sent_messages + user.received_messages)|sort(attribute='timestamp', reverse=True) %}
+                    {% set seen = [] %}
+                    {% set found_any = [] %}
+                    
+                    {% for msg in all_messages %}
+                        {% set partner_id = msg.receiver_id if msg.sender_id == user.id else msg.sender_id %}
+                        
+                        {% if partner_id not in seen %}
+                            {% if seen.append(partner_id) or true %}
+                                {% if found_any.append(true) or true %}{% endif %}
+                                {% set partner_user = msg.recipient if msg.sender_id == user.id else msg.sender %}
+                                
+                                <a href="{{ url_for('messages_userid', user_id=partner_id) }}" class="dialog-card {% if request.view_args.get('user_id') == partner_id %}active{% endif %}">
+                                    <div class="avatar-small" style="width:40px; height:40px; border-radius:50%; background:var(--gradient-glow); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000;">
+                                        {{ partner_user.username[0]|upper }}
+                                    </div>
+                                    <div class="dialog-info">
+                                        <span class="dialog-name">{{ partner_user.username }}</span>
+                                        <span class="dialog-last">{{ msg.text }}</span>
+                                    </div>
+                                </a>
+                            {% endif %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if not found_any %}
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 20px;">Нет активных диалогов</p>
+                    {% endif %}
+                </div>
+
+                <!-- Right Side: Active Chat Window -->
+                <div class="chat-window">
+                    {% if request.view_args.get('user_id') %}
+                        <div class="chat-header">
+                            <div class="avatar">?</div>
+                            <h3 style="font-size: 1.1rem; font-weight: 600;">
+                                {% if messages %}
+                                    {# Достаем ник из первого попавшегося сообщения #}
+                                    {% if messages[0].sender_id == user.id %}{{ messages[0].recipient.username }}{% else %}{{ messages[0].sender.username }}{% endif %}
+                                {% else %}
+                                    Чат
+                                {% endif %}
+                            </h3>
+                        </div>
+
+                        <div class="messages-area">
+                            {% if messages %}
+                                {% for msg in messages %}
+                                    <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
+                                        {{ msg.text }}
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div style="text-align: center; color: var(--text-muted); margin-top: 100px;">
+                                    Нет сообщений. Напишите первым!
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <form class="chat-input-area" method="POST" action="{{ url_for('messages_userid', user_id=request.view_args.get('user_id')) }}">
+                            <input type="text" name="message" class="chat-input" placeholder="Введите сообщение..." required autofocus autocomplete="off">
+                            <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
+                        </form>
+                    {% else %}
+                        <div style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px; opacity: 0.3;">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            <p>Выберите чат слева или найдите пользователя</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </main>
     </div>
+    <script>
+        const msgArea = document.querySelector('.messages-area');
+        if (msgArea) {
+            msgArea.scrollTop = msgArea.scrollHeight;
+        }
+    </script>
 </body>
 </html>
