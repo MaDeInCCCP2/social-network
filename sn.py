@@ -9,8 +9,13 @@ from werkzeug.security import generate_password_hash
 from werkzeug.security import check_password_hash
 import os
 import uuid
+from aiassis import ai_bp, get_bot_response
+from flask_socketio import SocketIO, join_room
+
 
 app = Flask(__name__, static_folder='style', static_url_path='/style')
+app.register_blueprint(ai_bp)
+socketio = SocketIO(app)
 app.config['SECRET_KEY'] = 'qwerty123'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///social.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -80,6 +85,8 @@ class Message(db.Model):
     image = db.Column(db.String(256), nullable=True)
     video = db.Column(db.String(256), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    is_friend = db.Column(db.Boolean, default=False)
+    is_ai = db.Column(db.Boolean, default=False)
     
     sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_messages', lazy=True))
     recipient = db.relationship('User', foreign_keys=[receiver_id], backref=db.backref('received_messages', lazy=True))
@@ -98,6 +105,51 @@ class Friends(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.String(20), default='pending')
+
+@socketio.on('connect')
+def on_connect():
+    user_id = current_user.id
+    join_room(user_id)
+    print(f"User {user_id} connected and joined room {user_id}")
+
+@socketio.on('typing')
+def handle_typing(data):
+    socketio.emit('display_typing', {'user_id': current_user.id}, to=data['user_id'])
+
+@socketio.on('stop_typing')
+def handle_stop_typing(data):
+    socketio.emit('display_stop_typing', {'user_id': current_user.id}, to=data['user_id'])
+
+@socketio.on('message')
+def handle_message(data):
+    text = data['text']
+    user_id = data['user_id']
+    if text:
+            new_msg = Message()
+            new_msg.sender_id = current_user.id
+            new_msg.receiver_id = data['user_id']
+            new_msg.text = data['text']
+            friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
+            bot = User.query.filter_by(username="XAM_AI").first()
+            if data['user_id'] == bot.id:
+                new_msg.is_ai = True
+                new_msg.sender_id = current_user.id
+                bot_msg = Message()
+                bot_msg.sender_id = user_id
+                bot_msg.receiver_id = current_user.id
+                bot_msg.text = get_bot_response(text)
+                bot_msg.is_ai = True
+                db.session.add(bot_msg)
+                socketio.emit('display_message', {current_user.id: bot_msg.text}, to=current_user.id)
+            else:
+                new_msg.is_ai = False
+            if friend:
+                new_msg.is_friend = True
+            else:
+                new_msg.is_friend = False
+            db.session.add(new_msg)
+            db.session.commit()
+    socketio.emit('display_message', {data['user_id']: data['text']}, to=data['user_id'])
 
 
 @login_manager.user_loader
@@ -389,6 +441,15 @@ def search_user(user_id):
 if __name__ == '__main__': # запуск сайта
     with app.app_context():
         db.create_all()
+        if not User.query.filter_by(username="admin").first():
+            admin_user = User(
+                username="admin", 
+                email="admin@xam.ru", 
+                password=generate_password_hash("123123")
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("--- Аккаунт admin создан! ---")
         if not User.query.filter_by(username="XAM_AI").first():
             ai_user = User(
                 username="XAM_AI", 

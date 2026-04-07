@@ -6,7 +6,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>XAM — Сообщения</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
+        /* Typing Indicator Styles */
+        .typing-indicator {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            font-size: 0.8rem;
+            color: var(--primary-cyan);
+            margin-bottom: 10px;
+            display: none;
+            align-self: flex-start;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .typing-dots span {
+            animation: dot-pulse 1.5s infinite;
+            display: inline-block;
+        }
+        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.3; transform: translateY(0); }
+            50% { opacity: 1; transform: translateY(-2px); }
+        }
+        
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
         .chat-container {
             display: grid;
             grid-template-columns: 320px 1fr;
@@ -272,27 +300,31 @@
                         </h3>
                     </div>
 
-                    <div class="messages-area">
-                        {% if messages %}
-                        {% for msg in messages %}
-                        <div
-                            class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
-                            {{ msg.text }}
+                        <div class="messages-area" id="messagesArea">
+                            {% if messages %}
+                            {% for msg in messages %}
+                            <div
+                                class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
+                                {{ msg.text }}
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <div class="no-messages-tip" style="text-align: center; color: var(--text-muted); margin-top: 100px;">
+                                Нет сообщений. Напишите первым!
+                            </div>
+                            {% endif %}
                         </div>
-                        {% endfor %}
-                        {% else %}
-                        <div style="text-align: center; color: var(--text-muted); margin-top: 100px;">
-                            Нет сообщений. Напишите первым!
-                        </div>
-                        {% endif %}
-                    </div>
 
-                    <form class="chat-input-area" method="POST"
-                        action="{{ url_for('messages_userid', user_id=request.view_args.get('user_id')) }}">
-                        <input type="text" name="message" class="chat-input" placeholder="Введите сообщение..." required
-                            autofocus autocomplete="off">
-                        <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
-                    </form>
+                        <div class="typing-indicator" id="typingIndicator">
+                            Собеседник печатает<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>
+                        </div>
+
+                        <form class="chat-input-area" id="chatForm">
+                            <input type="text" id="msgInput" class="chat-input" placeholder="Введите сообщение..." required
+                                autofocus autocomplete="off">
+                            <input type="hidden" id="recipientId" value="{{ request.view_args.get('user_id') }}">
+                            <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
+                        </form>
                     {% else %}
                     <div
                         style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
@@ -310,9 +342,79 @@
         </main>
     </div>
     <script>
-        const msgArea = document.querySelector('.messages-area');
-        if (msgArea) {
-            msgArea.scrollTop = msgArea.scrollHeight;
+        const socket = io();
+        const chatForm = document.getElementById('chatForm');
+        const msgInput = document.getElementById('msgInput');
+        const messagesArea = document.getElementById('messagesArea');
+        const recipientId = document.getElementById('recipientId')?.value;
+        const typingIndicator = document.getElementById('typingIndicator');
+        let typingTimeout;
+
+        // Auto-scroll to bottom
+        const scrollToBottom = () => {
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        };
+        scrollToBottom();
+
+        if (recipientId) {
+            // Sending messages
+            chatForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const text = msgInput.value.trim();
+                if (text) {
+                    // Send to server via socket
+                    socket.emit('message', {
+                        'text': text,
+                        'user_id': parseInt(recipientId)
+                    });
+
+                    // Add to UI immediately for sender
+                    const div = document.createElement('div');
+                    div.className = 'message-bubble msg-sent';
+                    div.textContent = text;
+                    messagesArea.appendChild(div);
+                    
+                    const emptyTip = document.querySelector('.no-messages-tip');
+                    if(emptyTip) emptyTip.style.display = 'none';
+
+                    msgInput.value = '';
+                    scrollToBottom();
+                    socket.emit('stop_typing', { 'user_id': parseInt(recipientId) });
+                }
+            });
+
+            // Handle typing status
+            msgInput.addEventListener('input', () => {
+                socket.emit('typing', { 'user_id': parseInt(recipientId) });
+            });
+
+            // Receive messages
+            socket.on('display_message', (data) => {
+                // Since user used {data['user_id']: data['text']} format
+                const text = data[Object.keys(data)[0]]; 
+                
+                const div = document.createElement('div');
+                div.className = 'message-bubble msg-received';
+                div.textContent = text;
+                messagesArea.appendChild(div);
+                scrollToBottom();
+                typingIndicator.style.display = 'none';
+            });
+
+            // Display typing
+            socket.on('display_typing', (data) => {
+                typingIndicator.style.display = 'block';
+                scrollToBottom();
+                
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    typingIndicator.style.display = 'none';
+                }, 3000);
+            });
+
+            socket.on('display_stop_typing', () => {
+                typingIndicator.style.display = 'none';
+            });
         }
     </script>
 </body>
