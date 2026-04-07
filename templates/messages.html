@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -111,7 +112,8 @@
             border-radius: 16px;
         }
 
-        .dialog-card:hover, .dialog-card.active {
+        .dialog-card:hover,
+        .dialog-card.active {
             background: rgba(0, 240, 255, 0.08);
             border-color: rgba(0, 240, 255, 0.3);
         }
@@ -138,11 +140,12 @@
         }
     </style>
 </head>
+
 <body>
     <div class="page-wrap">
         <aside class="sidebar">
             <div class="sidebar-logo">
-                <img src="/branding/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
+                <img src="/branding/T_Logo_XAM_Main.png" class="brand-logo" alt="XAM Logo">
             </div>
             <ul class="nav-links">
                 <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">
@@ -157,7 +160,9 @@
                 <a href="{{ url_for('messages') }}" style="text-decoration: none; color: inherit;">
                     <li class="nav-item active">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            <path
+                                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
+                            </path>
                         </svg>
                         XAM-Общения
                     </li>
@@ -201,7 +206,8 @@
                         <line x1="21" y1="12" x2="9" y2="12"></line>
                     </svg>
                 </a>
-                <a href="{{ url_for('profile', user_id=user.id) }}" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 12px;">
+                <a href="{{ url_for('profile', user_id=user.id) }}"
+                    style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 12px;">
                     <div class="user-profile">
                         <div class="avatar">{{ user.username[0]|upper }}</div>
                         <span style="font-weight: 500;">{{ user.username }}</span>
@@ -215,78 +221,89 @@
                 <!-- Left Sidebar: Last Chats -->
                 <div class="chat-list">
                     <h2 style="font-size: 1.2rem; margin-bottom: 8px;">Диалоги</h2>
-                    
+
                     {# Собираем все сообщения и фильтруем вручную для совместимости #}
-                    {% set all_messages = (user.sent_messages + user.received_messages)|sort(attribute='timestamp', reverse=True) %}
+                    {% set all_messages = (user.sent_messages + user.received_messages)|sort(attribute='timestamp',
+                    reverse=True) %}
                     {% set seen = [] %}
                     {% set found_any = [] %}
-                    
+
                     {% for msg in all_messages %}
-                        {% set partner_id = msg.receiver_id if msg.sender_id == user.id else msg.sender_id %}
-                        
-                        {% if partner_id not in seen %}
-                            {% if seen.append(partner_id) or true %}
-                                {% if found_any.append(true) or true %}{% endif %}
-                                {% set partner_user = msg.recipient if msg.sender_id == user.id else msg.sender %}
-                                
-                                <a href="{{ url_for('messages_userid', user_id=partner_id) }}" class="dialog-card {% if request.view_args.get('user_id') == partner_id %}active{% endif %}">
-                                    <div class="avatar-small" style="width:40px; height:40px; border-radius:50%; background:var(--gradient-glow); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000;">
-                                        {{ partner_user.username[0]|upper }}
-                                    </div>
-                                    <div class="dialog-info">
-                                        <span class="dialog-name">{{ partner_user.username }}</span>
-                                        <span class="dialog-last">{{ msg.text }}</span>
-                                    </div>
-                                </a>
-                            {% endif %}
-                        {% endif %}
+                    {% set partner_id = msg.receiver_id if msg.sender_id == user.id else msg.sender_id %}
+
+                    {% if partner_id not in seen %}
+                    {% if seen.append(partner_id) or true %}
+                    {% if found_any.append(true) or true %}{% endif %}
+                    {% set partner_user = msg.recipient if msg.sender_id == user.id else msg.sender %}
+
+                    <a href="{{ url_for('messages_userid', user_id=partner_id) }}"
+                        class="dialog-card {% if request.view_args.get('user_id') == partner_id %}active{% endif %}">
+                        <div class="avatar-small"
+                            style="width:40px; height:40px; border-radius:50%; background:var(--gradient-glow); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000;">
+                            {{ partner_user.username[0]|upper }}
+                        </div>
+                        <div class="dialog-info">
+                            <span class="dialog-name">{{ partner_user.username }}</span>
+                            <span class="dialog-last">{{ msg.text }}</span>
+                        </div>
+                    </a>
+                    {% endif %}
+                    {% endif %}
                     {% endfor %}
 
                     {% if not found_any %}
-                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 20px;">Нет активных диалогов</p>
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 20px;">Нет активных диалогов</p>
                     {% endif %}
                 </div>
 
                 <!-- Right Side: Active Chat Window -->
                 <div class="chat-window">
                     {% if request.view_args.get('user_id') %}
-                        <div class="chat-header">
-                            <div class="avatar">?</div>
-                            <h3 style="font-size: 1.1rem; font-weight: 600;">
-                                {% if messages %}
-                                    {# Достаем ник из первого попавшегося сообщения #}
-                                    {% if messages[0].sender_id == user.id %}{{ messages[0].recipient.username }}{% else %}{{ messages[0].sender.username }}{% endif %}
-                                {% else %}
-                                    Чат
-                                {% endif %}
-                            </h3>
-                        </div>
-
-                        <div class="messages-area">
+                    <div class="chat-header">
+                        <div class="avatar">?</div>
+                        <h3 style="font-size: 1.1rem; font-weight: 600;">
                             {% if messages %}
-                                {% for msg in messages %}
-                                    <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
-                                        {{ msg.text }}
-                                    </div>
-                                {% endfor %}
+                            {# Достаем ник из первого попавшегося сообщения #}
+                            {% if messages[0].sender_id == user.id %}{{ messages[0].recipient.username }}{% else %}{{
+                            messages[0].sender.username }}{% endif %}
                             {% else %}
-                                <div style="text-align: center; color: var(--text-muted); margin-top: 100px;">
-                                    Нет сообщений. Напишите первым!
-                                </div>
+                            Чат
                             {% endif %}
-                        </div>
+                        </h3>
+                    </div>
 
-                        <form class="chat-input-area" method="POST" action="{{ url_for('messages_userid', user_id=request.view_args.get('user_id')) }}">
-                            <input type="text" name="message" class="chat-input" placeholder="Введите сообщение..." required autofocus autocomplete="off">
-                            <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
-                        </form>
-                    {% else %}
-                        <div style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
-                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 16px; opacity: 0.3;">
-                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                            </svg>
-                            <p>Выберите чат слева или найдите пользователя</p>
+                    <div class="messages-area">
+                        {% if messages %}
+                        {% for msg in messages %}
+                        <div
+                            class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
+                            {{ msg.text }}
                         </div>
+                        {% endfor %}
+                        {% else %}
+                        <div style="text-align: center; color: var(--text-muted); margin-top: 100px;">
+                            Нет сообщений. Напишите первым!
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <form class="chat-input-area" method="POST"
+                        action="{{ url_for('messages_userid', user_id=request.view_args.get('user_id')) }}">
+                        <input type="text" name="message" class="chat-input" placeholder="Введите сообщение..." required
+                            autofocus autocomplete="off">
+                        <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
+                    </form>
+                    {% else %}
+                    <div
+                        style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1" style="margin-bottom: 16px; opacity: 0.3;">
+                            <path
+                                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
+                            </path>
+                        </svg>
+                        <p>Выберите чат слева или найдите пользователя</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
@@ -299,4 +316,5 @@
         }
     </script>
 </body>
+
 </html>

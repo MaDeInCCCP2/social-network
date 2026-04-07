@@ -10,7 +10,7 @@
 <div class="page-wrap">
     <aside class="sidebar">
         <div class="sidebar-logo">
-            <img src="/branding/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
+            <img src="/branding/T_Logo_XAM_Main.png" class="brand-logo" alt="XAM Logo">
         </div>
         <ul class="nav-links">
             <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">
@@ -96,8 +96,13 @@
                                 </div>
                             </div>
                         </a>
-                        <div class="search-actions">
-                            <a href="{{ url_for('messages_userid', user_id=u.id) }}" class="btn-primary">Написать</a>
+                        <div class="search-actions" style="display: flex; gap: 12px; align-items: center;">
+                            <a href="{{ url_for('messages_userid', user_id=u.id) }}" class="btn-secondary" style="padding: 8px 16px;">Написать</a>
+                            {% if u.id != user.id %}
+                                <form action="{{ url_for('friend_add', user_id=u.id) }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn-primary" style="padding: 8px 16px; font-size: 0.85rem;">В друзья</button>
+                                </form>
+                            {% endif %}
                         </div>
                     </div>
                 {% endfor %}

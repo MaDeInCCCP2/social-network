@@ -7,12 +7,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
 <body>
-    <span class="logo-text" style="background-clip: text;">XAM</span>
     <div class="page-wrap">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">
             <div class="sidebar-logo">
-                <img src="/branding/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
+                <img src="/branding/T_Logo_XAM_Main.png" class="brand-logo" alt="XAM Logo">
             </div>
             <ul class="nav-links">
                 <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">
@@ -49,7 +48,7 @@
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
                             <circle cx="12" cy="7" r="4"></circle>
                         </svg>
-                        XAM-Профиль
+                        XAM-Настройки
                     </li>
                 </a>
             </ul>
@@ -76,20 +75,122 @@
         <!-- Main Content -->
         <main class="main-content">
             <div class="feed">
-                <h2 style="margin-bottom: 24px; font-weight: 600; background: var(--gradient-glow); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; display: inline-block;">Мои друзья</h2>
+                <h2 style="margin-bottom: 24px; font-weight: 600; background: var(--gradient-glow); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; display: inline-block;">Сообщество XAM</h2>
                 
-                <div class="glass-panel" style="padding: 32px; text-align: center; color: var(--text-muted);">
-                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 20px; opacity: 0.3;">
-                        <circle cx="9" cy="7" r="4"></circle>
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    </svg>
-                    <p style="font-size: 1.1rem;">У вас пока нет друзей</p>
-                    <p style="font-size: 0.9rem; margin-top: 8px;">Используйте поиск, чтобы найти знакомых в сети XAM</p>
+                <div class="friends-tabs">
+                    <button class="tab-btn active" onclick="switchTab('friends-list', this)">
+                        Мои друзья <span class="badge">{{ friends|length if friends else '0' }}</span>
+                    </button>
+                    <button class="tab-btn" onclick="switchTab('requests-list', this)">
+                        Заявки <span class="badge" style="background: var(--primary-cyan); color: #000;">{{ requests|length if requests else '0' }}</span>
+                    </button>
+                </div>
+
+                <!-- Friends List Section -->
+                <div id="friends-list" class="tab-content">
+                    {% if friends %}
+                        {% for friend in friends %}
+                        <div class="user-card glass-panel">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar">{{ friend.username[0]|upper }}</div>
+                                <div class="user-card-details">
+                                    <a href="{{ url_for('profile', user_id=friend.id) }}" class="user-card-name">{{ friend.username }}</a>
+                                    <div class="user-card-status">В сети</div>
+                                </div>
+                            </div>
+                            <div class="user-card-actions">
+                                <a href="{{ url_for('messages_userid', user_id=friend.id) }}" class="btn-icon" title="Написать сообщение">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                    </svg>
+                                </a>
+                                <form action="{{ url_for('friend_remove', user_id=friend.id) }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn-icon reject" title="Удалить из друзей">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="9" cy="7" r="4"></circle>
+                                            <line x1="18" y1="8" x2="23" y2="13"></line>
+                                            <line x1="23" y1="8" x2="18" y2="13"></line>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state glass-panel">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            </svg>
+                            <p>У вас пока нет друзей</p>
+                            <a href="{{ url_for('search') }}" class="btn-primary" style="margin-top: 20px;">Найти друзей</a>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Requests Section -->
+                <div id="requests-list" class="tab-content" style="display: none;">
+                    {% if requests %}
+                        {% for req in requests %}
+                        <div class="user-card glass-panel">
+                            <div class="user-card-info">
+                                <div class="user-card-avatar">{{ req.user.username[0]|upper }}</div>
+                                <div class="user-card-details">
+                                    <a href="{{ url_for('profile', user_id=req.user.id) }}" class="user-card-name">{{ req.user.username }}</a>
+                                    <div class="user-card-status">Хочет добавить вас в друзья</div>
+                                </div>
+                            </div>
+                            <div class="user-card-actions">
+                                <form action="{{ url_for('friend_accept', user_id=req.user_id) }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn-icon confirm" title="Принять заявку">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="20 6 9 17 4 12"></polyline>
+                                        </svg>
+                                    </button>
+                                </form>
+                                <form action="{{ url_for('friend_decline', user_id=req.user_id) }}" method="POST" style="display:inline;">
+                                    <button type="submit" class="btn-icon reject" title="Отклонить">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-state glass-panel">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <line x1="19" y1="8" x2="19" y2="14"></line>
+                                <line x1="22" y1="11" x2="16" y2="11"></line>
+                            </svg>
+                            <p>Новых заявок нет</p>
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </main>
     </div>
+
+    <script>
+        function switchTab(tabId, btn) {
+            // Скрыть все вкладки
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            // Показать выбранную
+            document.getElementById(tabId).style.display = 'block';
+            
+            // Обновить активную кнопку
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            btn.classList.add('active');
+        }
+    </script>
 </body>
 </html>

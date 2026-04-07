@@ -18,6 +18,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_IMAGE'] = 'C:/Users/redfy/Documents/social-network/instance/images'
 app.config['UPLOAD_VIDEO'] = 'C:/Users/redfy/Documents/social-network/instance/videos'
 
+# база данных sql
+
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -91,20 +93,26 @@ class Profile(db.Model):
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('profile', uselist=False))
 
+class Friends(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
 
-@app.route('/')
+@app.route('/') # главная страница
 @login_required
 def index():
     posts = Post.query.order_by(Post.timestamp.desc()).all()
     liked_post_ids = [like.post_id for like in Like.query.filter_by(user_id=current_user.id).all()]
     return render_template('index.html', user=current_user, posts=posts, liked_post_ids=liked_post_ids)
 
-@app.route('/new_post', methods=['POST'])
+@app.route('/new_post', methods=['POST']) # посты с видео и изображениями
 @login_required
 def new_post():
     text = request.form.get('content', '').strip()
@@ -130,7 +138,7 @@ def new_post():
         db.session.commit()
     return redirect(url_for('index'))
 
-@app.route('/like/<int:post_id>', methods=['POST'])
+@app.route('/like/<int:post_id>', methods=['POST']) # лайки под постами
 @login_required
 def like_post(post_id):
     like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
@@ -142,7 +150,7 @@ def like_post(post_id):
     db.session.commit()
     return redirect(url_for('index'))
 
-@app.route('/comment/<int:post_id>', methods=['POST'])
+@app.route('/comment/<int:post_id>', methods=['POST']) # комментарии под постами
 @login_required
 def comment_post(post_id):
     text = request.form.get('content', '').strip()
@@ -152,27 +160,27 @@ def comment_post(post_id):
         db.session.commit()
     return redirect(url_for('index'))
 
-@app.route('/image/<path:filename>')
+@app.route('/image/<path:filename>') # картинки
 def serve_image(filename):
     return send_from_directory(app.config['UPLOAD_IMAGE'], filename)
 
-@app.route('/video/<path:filename>')
+@app.route('/video/<path:filename>') # видео
 def serve_video(filename):
     return send_from_directory(app.config['UPLOAD_VIDEO'], filename)
 
-@app.route('/branding/<path:filename>')
+@app.route('/branding/<path:filename>') # брендинг
 def serve_branding(filename):
     return send_from_directory(os.path.join(app.root_path, 'image'), filename)
     
 
 
-@app.route('/terms')
+@app.route('/terms') # правила пользования
 def terms():
     from flask import send_from_directory
     return send_from_directory(app.root_path, 'Правила пользования ХАМ.pdf')
 
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register', methods=['GET', 'POST']) # регистрация
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -223,7 +231,7 @@ def register():
     return render_template('reg.html')
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['GET', 'POST']) # вход
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -250,7 +258,7 @@ def login():
 
     return render_template('auth.html')
 
-
+# апроуты ссылок
 @app.route('/logout')
 def logout():
     logout_user()
@@ -259,14 +267,27 @@ def logout():
 @app.route('/friends')
 @login_required
 def friends():
-    return render_template('friends.html', user=current_user)
+    friendships = Friends.query.filter(((Friends.user_id == current_user.id) | (Friends.friend_id == current_user.id)) & (Friends.status == 'accepted')).all()
+    friends_list = []
+    for f in friendships:
+        target_id = f.friend_id if f.user_id == current_user.id else f.user_id
+        user_obj = db.session.get(User, target_id)
+        if user_obj:
+            friends_list.append(user_obj)
+    pending_requests = Friends.query.filter_by(friend_id=current_user.id, status='pending').all()
+    requests_sender = []
+    for r in pending_requests:
+        sender = db.session.get(User, r.user_id)
+        if sender:
+            requests_sender.append({'id': r.id, 'user': sender, 'user_id': sender.id})
+    return render_template('friends.html', user=current_user, friends=friends_list, requests=requests_sender)
 
 @app.route('/messages')
 @login_required
 def messages():
     return render_template('messages.html', user=current_user)
 
-@app.route('/messages/<int:user_id>', methods=['GET', 'POST'])
+@app.route('/messages/<int:user_id>', methods=['GET', 'POST']) # отправление сообщений и отображение переписки
 @login_required
 def messages_userid(user_id):
     if request.method == 'POST':
@@ -276,6 +297,11 @@ def messages_userid(user_id):
             new_msg.sender_id = current_user.id
             new_msg.receiver_id = user_id
             new_msg.text = text
+            friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
+            if friend:
+                new_msg.friend = True
+            else:
+                new_msg.friend = False
             db.session.add(new_msg)
             db.session.commit()
     messages = Message.query.filter_by(sender_id=current_user.id, receiver_id=user_id).all()
@@ -283,25 +309,67 @@ def messages_userid(user_id):
     messages = sorted(messages, key=lambda x: x.timestamp)
     return render_template('messages.html', user=current_user, messages=messages)
 
-@app.route('/profile/<int:user_id>')
+@app.route('/profile/<int:user_id>') # профиль
 @login_required
 def profile(user_id):
     u = User.query.get_or_404(user_id)
     p = Post.query.filter_by(user_id=user_id).order_by(Post.timestamp.desc()).all()
     return render_template('profile.html', user=current_user, other_user=u, posts=p)
 
+@app.route('/profile/<int:user_id>/friends') # отображение друзей в профиле
+@login_required
+def profile_friends(user_id):
+    u = User.query.get_or_404(user_id)
+    f = Friends.query.filter_by(user_id=user_id).all()
+    return render_template('profile.html', user=current_user, other_user=u, friends=f)
 
-@app.route('/groups')
+@app.route('/friends/add/<int:user_id>', methods=['POST']) # система добавления друзей
+@login_required
+def friend_add(user_id):
+    f = Friends()
+    f.user_id = current_user.id
+    f.friend_id = user_id
+    db.session.add(f)
+    db.session.commit()
+    return redirect(url_for('profile', user_id=user_id))
+
+@app.route('/friends/remove/<int:user_id>', methods=['POST']) # система удаления друзей
+@login_required
+def friend_remove(user_id):
+    f = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
+    db.session.delete(f)
+    db.session.commit()
+    return redirect(url_for('profile', user_id=user_id))
+
+@app.route('/friends/accept/<int:user_id>', methods=['POST']) # принятие заявки в друзья
+@login_required
+def friend_accept(user_id):
+    f = Friends.query.filter_by(user_id=user_id, friend_id=current_user.id).first()
+    f.status = 'accepted'
+    db.session.add(f)
+    db.session.commit()
+    return redirect(request.referrer or url_for('profile', user_id=user_id))
+
+@app.route('/friends/decline/<int:user_id>', methods=['POST']) # отклонение заявки в друзья
+@login_required
+def friend_decline(user_id):
+    f = Friends.query.filter_by(user_id=user_id, friend_id=current_user.id).first()
+    db.session.delete(f)
+    db.session.commit()
+    return redirect(request.referrer or url_for('friends'))
+
+
+@app.route('/groups') # группы (в будущем)
 @login_required
 def groups():
     return render_template('group.html', user=current_user)
 
-@app.route('/settings')
+@app.route('/settings') # настройки (пока не доделаны)
 @login_required
 def settings():
     return render_template('settings.html', user=current_user)
 
-@app.route('/search')
+@app.route('/search') # поиск людей
 @login_required
 def search():
     query = request.args.get('q', '').strip()
@@ -310,9 +378,26 @@ def search():
         result = User.query.filter(User.username.ilike(f'%{query}%')).all()
     return render_template('search.html', user=current_user, query=query, result=result)
 
-if __name__ == '__main__':
+@app.route('/search/user/<int:user_id>')
+@login_required
+def search_user(user_id):
+    u = User.query.get_or_404(user_id)
+    return render_template('search.html', user=current_user, other_user=u)
+
+
+
+if __name__ == '__main__': # запуск сайта
     with app.app_context():
         db.create_all()
+        if not User.query.filter_by(username="XAM_AI").first():
+            ai_user = User(
+                username="XAM_AI", 
+                email="ai@xam.ru", 
+                password=generate_password_hash("ai_secret_123")
+            )
+            db.session.add(ai_user)
+            db.session.commit()
+            print("--- Аккаунт XAM_AI создан! ---")
     app.run(debug=True, host='0.0.0.0')
 
 

@@ -1,57 +1,58 @@
 <!DOCTYPE html>
 <html lang="ru">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>XAM — Вход</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
 </head>
+
 <body>
-<div class="auth-wrapper">
-    <div class="glass-panel auth-card">
-        <div class="auth-header">
-            <div class="logo-container">
-                <img src="/branding/T_Logo_XAM.png" class="brand-logo" alt="XAM Logo">
-            </div>
-            <h1 class="auth-title">С возвращением</h1>
-        </div>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <div class="alerts">
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }}">{{ message }}</div>
-                    {% endfor %}
+    <div class="auth-wrapper">
+        <div class="glass-panel auth-card">
+            <div class="auth-header">
+                <div class="logo-container">
+                    <img src="/branding/T_Logo_XAM_01.png" class="brand-logo" alt="XAM Logo">
                 </div>
+                <h1 class="auth-title">С возвращением</h1>
+            </div>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="alerts">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
             {% endif %}
-        {% endwith %}
+            {% endwith %}
 
-        <form method="POST" action="{{ url_for('login') }}" novalidate>
-            <div class="input-group">
-                <label for="login_id">Имя пользователя или e-mail</label>
-                <input id="login_id" name="login_id" type="text"
-                       placeholder="Введите ваш логин или почту" required
-                       value="{{ request.form.get('login_id', '') }}">
-            </div>
+            <form method="POST" action="{{ url_for('login') }}" novalidate>
+                <div class="input-group">
+                    <label for="login_id">Имя пользователя или e-mail</label>
+                    <input id="login_id" name="login_id" type="text" placeholder="Введите ваш логин или почту" required
+                        value="{{ request.form.get('login_id', '') }}">
+                </div>
 
-            <div class="input-group">
-                <label for="password">Пароль</label>
-                <input id="password" name="password" type="password"
-                       placeholder="Введите пароль" required>
-            </div>
+                <div class="input-group">
+                    <label for="password">Пароль</label>
+                    <input id="password" name="password" type="password" placeholder="Введите пароль" required>
+                </div>
 
-            <div class="remember-row">
-                <input id="remember" name="remember" type="checkbox" value="1">
-                <label for="remember">Запомнить меня</label>
-            </div>
+                <div class="remember-row">
+                    <input id="remember" name="remember" type="checkbox" value="1">
+                    <label for="remember">Запомнить меня</label>
+                </div>
 
-            <button type="submit" class="btn-primary" style="margin-top: 8px;">Войти в сеть</button>
-        </form>
+                <button type="submit" class="btn-primary" style="margin-top: 8px;">Войти в сеть</button>
+            </form>
 
-        <p class="auth-footer">
-            Ещё нет аккаунта? <a href="{{ url_for('register') }}">Присоединиться к XAM</a>
-        </p>
+            <p class="auth-footer">
+                Ещё нет аккаунта? <a href="{{ url_for('register') }}">Присоединиться к XAM</a>
+            </p>
+        </div>
     </div>
-</div>
 </body>
+
 </html>
