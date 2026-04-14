@@ -94,6 +94,22 @@ a:hover {
     text-shadow: 0 0 8px rgba(157, 78, 221, 0.5);
 }
 
+.u-link-clean {
+    color: inherit !important;
+    text-decoration: none !important;
+}
+
+.u-link-clean:hover {
+    color: var(--primary-cyan) !important;
+    text-shadow: none !important;
+}
+
+.u-nav-link {
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+
 .btn-primary {
     background: var(--gradient-glow);
     color: #fff;
@@ -446,8 +462,9 @@ input[type="password"]:focus {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 8px 16px;
-    width: 320px;
+    padding: 6px 16px;
+    width: 240px;
+    max-width: 100%;
     gap: 8px !important;
     transition: var(--transition-smooth);
     position: relative;
@@ -585,6 +602,10 @@ input[type="password"]:focus {
     line-height: 1.6;
     margin-bottom: 20px;
     color: #e0e0e0;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word; /* Для Safari и старых браузеров */
+    hyphens: auto;
 }
 
 .post-actions {
@@ -884,4 +905,57 @@ input[type="password"]:focus {
 .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Collapsible Posts Styles */
+.post-expandable {
+    cursor: default;
+}
+
+.post-summary {
+    list-style: none;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+    transition: var(--transition-smooth);
+}
+
+.post-summary::-webkit-details-marker {
+    display: none;
+}
+
+.read-more {
+    color: var(--primary-cyan);
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 4px;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    opacity: 0.8;
+    transition: var(--transition-smooth);
+}
+
+.read-more:hover {
+    opacity: 1;
+    text-shadow: 0 0 8px var(--primary-cyan);
+}
+
+.post-expandable[open] .post-summary {
+    display: none;
+}
+
+.full-text {
+    animation: fadeInContent 0.4s ease-out;
+    white-space: pre-wrap;
+}
+
+@keyframes fadeInContent {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

@@ -151,6 +151,30 @@ def handle_message(data):
             db.session.commit()
     socketio.emit('display_message', {data['user_id']: data['text']}, to=data['user_id'])
 
+@socketio.on('comment')
+def handle_comment(data):
+    text = data.get('text', '').strip()
+    post_id = data.get('post_id')
+    if text and post_id:
+        comment = Comment(text=text, user_id=current_user.id, post_id=post_id)
+        db.session.add(comment)
+        db.session.commit()
+        
+        # Отправляем обновленные данные всем в комнате этого поста
+        socketio.emit('display_comment', {
+            'post_id': post_id,
+            'text': text,
+            'author': current_user.username,
+            'timestamp': datetime.utcnow().strftime('%H:%M')
+        }, room=f"post_{post_id}")
+
+@socketio.on('join_post')
+def on_join_post(data):
+    post_id = data.get('post_id')
+    if post_id:
+        join_room(f"post_{post_id}")
+        print(f"User joining room for post {post_id}")
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -168,6 +192,7 @@ def index():
 @login_required
 def new_post():
     text = request.form.get('content', '').strip()
+    text = text[:250]
     file = request.files.get('image')
     video = request.files.get('video')
     image_filename = None
@@ -409,6 +434,34 @@ def friend_decline(user_id):
     db.session.delete(f)
     db.session.commit()
     return redirect(request.referrer or url_for('friends'))
+
+@app.route('/settings/change_password', methods=['POST'])
+@login_required
+def change_password():
+    old_password = request.form.get('old_password')
+    new_password = request.form.get('new_password')
+    confirm_password = request.form.get('confirm_password')
+
+    if not old_password or not new_password or not confirm_password:
+        flash('Заполните все поля!', 'danger')
+        return redirect(url_for('settings'))
+
+    if not check_password_hash(current_user.password, old_password):
+        flash('Старый пароль введен неверно!', 'danger')
+        return redirect(url_for('settings'))
+
+    if new_password != confirm_password:
+        flash('Новые пароли не совпадают!', 'danger')
+        return redirect(url_for('settings'))
+
+    if len(new_password) < 6:
+        flash('Новый пароль слишком короткий (минимум 6 символов)!', 'danger')
+        return redirect(url_for('settings'))
+
+    current_user.password = generate_password_hash(new_password)
+    db.session.commit()
+    flash('Пароль успешно изменен!', 'success')
+    return redirect(url_for('settings'))
 
 
 @app.route('/groups') # группы (в будущем)

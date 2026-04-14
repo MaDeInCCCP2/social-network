@@ -140,7 +140,7 @@
                 <img src="/branding/T_Logo_XAM_Main.png" class="brand-logo" alt="XAM Logo">
             </div>
             <ul class="nav-links">
-                <a href="{{ url_for('index') }}" style="text-decoration: none; color: inherit;">
+                <a href="{{ url_for('index') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
@@ -149,7 +149,7 @@
                         XAM-Лента
                     </li>
                 </a>
-                <a href="{{ url_for('messages') }}" style="text-decoration: none; color: inherit;">
+                <a href="{{ url_for('messages') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
@@ -157,7 +157,7 @@
                         XAM-Общения
                     </li>
                 </a>
-                <a href="{{ url_for('friends') }}" style="text-decoration: none; color: inherit;">
+                <a href="{{ url_for('friends') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
@@ -168,7 +168,7 @@
                         XAM-Друзья
                     </li>
                 </a>
-                <a href="{{ url_for('settings') }}" style="text-decoration: none; color: inherit;">
+                <a href="{{ url_for('settings') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -196,7 +196,7 @@
                         <line x1="21" y1="12" x2="9" y2="12"></line>
                     </svg>
                 </a>
-                <a href="{{ url_for('profile', user_id=user.id) }}" style="text-decoration: none; color: inherit; display: flex; align-items: center; gap: 12px;">
+                <a href="{{ url_for('profile', user_id=user.id) }}" class="u-link-clean" style="display: flex; align-items: center; gap: 12px;">
                     <div class="user-profile">
                         <div class="avatar">{{ user.username[0]|upper }}</div>
                         <span style="font-weight: 500;">{{ user.username }}</span>
@@ -260,7 +260,16 @@
                                         <div style="font-size: 0.75rem; color: var(--text-muted);">{{ post.timestamp.strftime('%d.%m.%Y %H:%M') }}</div>
                                     </div>
                                 </div>
-                                <p style="line-height: 1.6; margin-bottom: 16px; font-size: 1rem;">{{ post.text }}</p>
+                                <div class="post-content" style="line-height: 1.6; margin-bottom: 16px; font-size: 1rem;">
+                                    {% if post.text|length > 120 %}
+                                    <details class="post-expandable">
+                                        <summary class="post-summary">{{ post.text[:120] }}... <span class="read-more">Читать далее</span></summary>
+                                        <div class="full-text">{{ post.text }}</div>
+                                    </details>
+                                    {% else %}
+                                        {{ post.text }}
+                                    {% endif %}
+                                </div>
                                 {% if post.video %}
                                     <div class="video-container" style="position:relative; border-radius: 16px; overflow:hidden; border: 1px solid var(--border-color); background: #000;">
                                         <video controls style="width: 100%; display: block;">
@@ -273,6 +282,29 @@
                                         <img src="{{ url_for('serve_image', filename=post.photo) }}" style="width: 100%; display: block;">
                                     </div>
                                 {% endif %}
+                                <div class="post-actions" style="border-top: 1px solid var(--border-color); padding-top: 16px; display: flex; gap: 24px;">
+                                    <button class="action-btn" style="background:none; border:none; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; gap:8px;" onclick="toggleComments('{{ post.id }}')">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                        </svg>
+                                        Комментировать ({{ post.comments|length }})
+                                    </button>
+                                </div>
+
+                                <div id="comments-{{ post.id }}" class="post-comments" style="display: none; border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 12px;">
+                                    {% for comment in post.comments %}
+                                    <div class="comment" style="margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px;">
+                                        <strong>{{ comment.author.username }}</strong>
+                                        <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">{{ comment.timestamp.strftime('%H:%M') }}</span>
+                                        <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text }}</p>
+                                    </div>
+                                    {% endfor %}
+                                    <form onsubmit="submitComment(event, '{{ post.id }}')" style="display: flex; gap: 8px; margin-top: 12px; align-items: center;">
+                                        <input type="text" name="content" placeholder="Ваш комментарий..." required
+                                            style="flex: 1; padding: 10px 14px; border-radius: 12px; outline: none; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: var(--text-main); font-family: var(--font-family);">
+                                        <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
+                                    </form>
+                                </div>
                             </div>
                         {% endfor %}
                     {% else %}
@@ -308,5 +340,58 @@
             </div>
         </main>
     </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        function toggleComments(postId) {
+            const commentsDiv = document.getElementById('comments-' + postId);
+            if (commentsDiv.style.display === 'none') {
+                commentsDiv.style.display = 'block';
+                socket.emit('join_post', { post_id: postId });
+            } else {
+                commentsDiv.style.display = 'none';
+            }
+        }
+
+        function submitComment(event, postId) {
+            event.preventDefault();
+            const form = event.target;
+            const input = form.querySelector('input[name="content"]');
+            const text = input.value.trim();
+            
+            if (text) {
+                socket.emit('comment', {
+                    post_id: postId,
+                    text: text
+                });
+                input.value = '';
+            }
+        }
+
+        socket.on('display_comment', function(data) {
+            const commentsContainer = document.querySelector(`#comments-${data.post_id}`);
+            if (commentsContainer) {
+                const newComment = document.createElement('div');
+                newComment.className = 'comment';
+                newComment.style.cssText = 'margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px; animation: fadeInComment 0.4s ease-out;';
+                newComment.innerHTML = `
+                    <strong>${data.author}</strong>
+                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">${data.timestamp}</span>
+                    <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">${data.text}</p>
+                `;
+                const form = commentsContainer.querySelector('form');
+                commentsContainer.insertBefore(newComment, form);
+            }
+        });
+    </script>
+    <style>
+        @keyframes fadeInComment {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .action-btn:hover { color: var(--primary-cyan) !important; }
+    </style>
 </body>
 </html>
