@@ -187,11 +187,25 @@
                         style="display: none; border-top: 1px solid var(--border-color); padding-top: 16px; margin-top: 12px;">
                         {% for comment in post.comments %}
                         <div class="comment"
-                            style="margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px;">
+                            style="margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px; position: relative;">
                             <strong>{{ comment.author.username }}</strong>
                             <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">{{
                                 comment.timestamp.strftime('%H:%M') }}</span>
                             <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text | safe }}</p>
+                            
+                            <div class="comment-footer" style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                                <button onclick="likeComment('{{ comment.id }}')" 
+                                        id="comment-like-{{ comment.id }}" 
+                                        class="action-btn" 
+                                        style="font-size: 0.75rem; padding: 2px 0; display: flex; align-items: center; gap: 4px; color: {% if liked_comment_ids and comment.id in liked_comment_ids %}var(--primary-cyan){% else %}var(--text-muted){% endif %};">
+                                    <svg width="12" height="12" viewBox="0 0 24 24" 
+                                         fill="{% if liked_comment_ids and comment.id in liked_comment_ids %}currentColor{% else %}none{% endif %}" 
+                                         stroke="currentColor" stroke-width="2">
+                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                    </svg>
+                                    <span class="count">{{ comment.likes|length }}</span>
+                                </button>
+                            </div>
                         </div>
                         {% endfor %}
                         <form onsubmit="submitComment(event, '{{ post.id }}')"
@@ -259,15 +273,46 @@
             if (commentsContainer) {
                 const newComment = document.createElement('div');
                 newComment.className = 'comment';
-                newComment.style.cssText = 'margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px; animation: fadeInComment 0.4s ease-out;';
+                newComment.style.cssText = 'margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px; animation: fadeInComment 0.4s ease-out; position: relative;';
                 newComment.innerHTML = `
                     <strong>${data.author}</strong>
                     <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">${data.timestamp}</span>
                     <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">${data.text}</p>
+                    <div class="comment-footer" style="display: flex; gap: 10px; align-items: center; margin-top: 6px;">
+                        <button onclick="likeComment('${data.id}')" 
+                                id="comment-like-${data.id}" 
+                                class="action-btn" 
+                                style="font-size: 0.75rem; padding: 2px 0; display: flex; align-items: center; gap: 4px; color: var(--text-muted);">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            <span class="count">0</span>
+                        </button>
+                    </div>
                 `;
                 // Вставляем перед формой отправки
                 const form = commentsContainer.querySelector('form');
                 commentsContainer.insertBefore(newComment, form);
+            }
+        });
+
+        function likeComment(commentId) {
+            socket.emit('like_comment', { comment_id: commentId });
+        }
+
+        socket.on('comment_like_update', function(data) {
+            const btn = document.getElementById(`comment-like-${data.comment_id}`);
+            if (btn) {
+                btn.querySelector('.count').textContent = data.count;
+                if (data.user_id === {{ user.id }}) {
+                    if (data.action === 'liked') {
+                        btn.style.color = 'var(--primary-cyan)';
+                        btn.querySelector('svg').setAttribute('fill', 'currentColor');
+                    } else {
+                        btn.style.color = 'var(--text-muted)';
+                        btn.querySelector('svg').setAttribute('fill', 'none');
+                    }
+                }
             }
         });
     </script>

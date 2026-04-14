@@ -61,6 +61,7 @@ class Comment(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    likes = db.relationship('CommentLike', backref='comment', lazy=True, cascade="all, delete-orphan")
     
     author = db.relationship('User')
 
@@ -106,6 +107,11 @@ class Friends(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.String(20), default='pending')
+
+class CommentLike(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=False)
 
 def proccess_mentions(text):
     mentions = re.findall(r'@(\w+)', text)
@@ -192,6 +198,33 @@ def handle_comment(data):
             'author': bot.username,
             'timestamp': datetime.utcnow().strftime('%H:%M')
         }, room=f"post_{post_id}")
+
+@socketio.on('like_comment')
+def handle_like_comment(data):
+    comment_id = data.get('comment_id')
+    if comment_id:
+        comment = Comment.query.get(comment_id)
+        if comment:
+            like = CommentLike.query.filter_by(user_id=current_user.id, comment_id=comment_id).first()
+            if like:
+                db.session.delete(like)
+                db.session.commit()
+                socketio.emit('comment_like_update', {
+                    'comment_id': comment_id,
+                    'count': len(comment.likes),
+                    'user_id': current_user.id,
+                    'action': 'unliked'
+                }, room=f"post_{comment.post_id}")
+            else:
+                like = CommentLike(user_id=current_user.id, comment_id=comment_id)
+                db.session.add(like)
+                db.session.commit()
+                socketio.emit('comment_like_update', {
+                    'comment_id': comment_id,
+                    'count': len(comment.likes),
+                    'user_id': current_user.id,
+                    'action': 'liked'
+                }, room=f"post_{comment.post_id}")
 
 @socketio.on('join_post')
 def on_join_post(data):
