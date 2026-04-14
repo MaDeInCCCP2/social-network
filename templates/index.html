@@ -191,7 +191,7 @@
                             <strong>{{ comment.author.username }}</strong>
                             <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">{{
                                 comment.timestamp.strftime('%H:%M') }}</span>
-                            <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text }}</p>
+                            <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text | safe }}</p>
                         </div>
                         {% endfor %}
                         <form onsubmit="submitComment(event, '{{ post.id }}')"

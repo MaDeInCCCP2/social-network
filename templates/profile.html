@@ -223,7 +223,7 @@
                         
                         {# This logic depends on the backend providing 'friendship_status' or similar #}
                         {# For now, providing a form-based friend request button #}
-                        <form action="{{ url_for('friend_add', user_id=other_user.id) }}" method="POST" style="display:inline;">
+                        <form action="{{ url_for('friend_add', user_id=other_user.id) }}" method="POST" style="display:inline;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerText='Отправлено';">
                             <button type="submit" class="btn-primary">В друзья</button>
                         </form>
                     {% endif %}
@@ -296,7 +296,7 @@
                                     <div class="comment" style="margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 8px 12px; border-radius: 8px;">
                                         <strong>{{ comment.author.username }}</strong>
                                         <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 8px;">{{ comment.timestamp.strftime('%H:%M') }}</span>
-                                        <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text }}</p>
+                                        <p style="font-size: 0.9rem; margin-top: 4px; color: #d0d0d0;">{{ comment.text | safe }}</p>
                                     </div>
                                     {% endfor %}
                                     <form onsubmit="submitComment(event, '{{ post.id }}')" style="display: flex; gap: 8px; margin-top: 12px; align-items: center;">

@@ -100,7 +100,7 @@
                         <div class="search-actions" style="display: flex; gap: 12px; align-items: center;">
                             <a href="{{ url_for('messages_userid', user_id=u.id) }}" class="btn-secondary" style="padding: 8px 16px;">Написать</a>
                             {% if u.id != user.id %}
-                                <form action="{{ url_for('friend_add', user_id=u.id) }}" method="POST" style="display:inline;">
+                                <form action="{{ url_for('friend_add', user_id=u.id) }}" method="POST" style="display:inline;" onsubmit="this.querySelector('button').disabled=true;">
                                     <button type="submit" class="btn-primary" style="padding: 8px 16px; font-size: 0.85rem;">В друзья</button>
                                 </form>
                             {% endif %}

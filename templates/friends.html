@@ -91,7 +91,7 @@
                 <!-- Friends List Section -->
                 <div id="friends-list" class="tab-content">
                     {% if friends %}
-                        {% for friend in friends %}
+                        {% for friend in friends|unique(attribute='id') %}
                         <div class="user-card glass-panel">
                             <div class="user-card-info">
                                 <div class="user-card-avatar">{{ friend.username[0]|upper }}</div>

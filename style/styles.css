@@ -104,6 +104,22 @@ a:hover {
     text-shadow: none !important;
 }
 
+.mention {
+    color: var(--primary-cyan);
+    font-weight: 600;
+    background: rgba(0, 240, 255, 0.1);
+    padding: 0 4px;
+    border-radius: 4px;
+    text-shadow: 0 0 5px rgba(0, 240, 255, 0.3);
+    transition: var(--transition-smooth);
+}
+
+.mention:hover {
+    background: rgba(0, 240, 255, 0.2);
+    color: var(--primary-purple);
+    text-shadow: 0 0 8px rgba(157, 78, 221, 0.5);
+}
+
 .u-nav-link {
     text-decoration: none;
     color: inherit;

@@ -18,13 +18,13 @@ def ai():
     data = request.get_json()
     user_message = data.get('user_message')
     response = client.models.generate_content(
-        model='gemma-4-31b-it',
+        model='gemini-3-flash-preview',
+
         contents=user_message,
         config={
             "system_instruction": systemprompt
         }
     )
-    user_message = data.get('user_message')
     return jsonify({'response': response.text})
 # def ai():
 #    data = request.get_json()
@@ -39,15 +39,25 @@ def ai():
 #    return jsonify({'response': response.json()['response']})
 
 def get_bot_response(user_text):
+    response = None
     systemprompt = 'Ты — XAM AI Ассистент. Доступны: get_friends_list(), create_post({"text": "..."}), send_comment({"post_id": ID, "text": "..."}). Если нужен инструмент, пиши СТРОГО: [TOOL_CALL: имя_функции(JSON)]. Аргументы — только валидный JSON в двойных кавычках или пусто. Пример: [TOOL_CALL: create_post({"text": "Привет"})]. Иначе — просто текст.'
+    models_to_try = ['gemma-4-31b-it', 'gemini-3-flash-preview', 'gemma-4-26b-a4b-it']
     client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
-    response = client.models.generate_content(
-        model='gemma-4-31b-it',
-        contents=user_text,
-        config={
-            "system_instruction": systemprompt
-        }
-    )
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model = model_name,
+                contents=user_text,
+                config={
+                    "system_instruction": systemprompt
+                }
+            )
+            break
+        except Exception as e:
+            print(f"Модель {model_name} сейчас не отвечает: {e}")
+            continue
+    if not response:
+        return "Просим прощения - сервера временно перегружены, попробуйте позже"
     if "[TOOL_CALL:" in response.text:
         tool_call = response.text.split("[TOOL_CALL:")[1].split("]")[0]
         tool_name = tool_call.split("(")[0].strip()
@@ -91,6 +101,14 @@ def bot_send_comment(post_id, text):
         db.session.add(comment)
         db.session.commit()
     return 'Комментарий создан'
+
+def server_error():
+    if genai.errors.server_error == True:
+        return 'Сервер временно перегружен, попробуйте позже'
+    if genai.errors.rate_limit_error == True:
+        return 'Сервер временно перегружен, попробуйте позже'
+    if genai.types.GenerateContentResponse.prompt_feedback.block_reason == True:
+        return 'Я не могу ответить на этот запрос'
 
 def run_tools(tool_name, tool_args):
     if tool_name == 'get_friends_list': # ИИ проверяет есть ли у пользователя друзья

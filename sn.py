@@ -11,6 +11,7 @@ import os
 import uuid
 from aiassis import ai_bp, get_bot_response
 from flask_socketio import SocketIO, join_room
+import re
 
 
 app = Flask(__name__, static_folder='style', static_url_path='/style')
@@ -106,6 +107,15 @@ class Friends(db.Model):
     friend_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     status = db.Column(db.String(20), default='pending')
 
+def proccess_mentions(text):
+    mentions = re.findall(r'@(\w+)', text)
+    for username in mentions:
+        target_user = User.query.filter_by(username=username).first()
+        if target_user:
+            link = url_for('profile', user_id=target_user.id)
+            text = text.replace(f'@{username}', f'<a href="{link}" class="mention">@{username}</a>')
+    return text
+
 @socketio.on('connect')
 def on_connect():
     user_id = current_user.id
@@ -129,6 +139,8 @@ def handle_message(data):
             new_msg.sender_id = current_user.id
             new_msg.receiver_id = data['user_id']
             new_msg.text = data['text']
+            db.session.add(new_msg)
+            db.session.commit()
             friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
             bot = User.query.filter_by(username="XAM_AI").first()
             if data['user_id'] == bot.id:
@@ -140,6 +152,7 @@ def handle_message(data):
                 bot_msg.text = get_bot_response(text)
                 bot_msg.is_ai = True
                 db.session.add(bot_msg)
+                db.session.commit()
                 socketio.emit('display_message', {current_user.id: bot_msg.text}, to=current_user.id)
             else:
                 new_msg.is_ai = False
@@ -147,13 +160,12 @@ def handle_message(data):
                 new_msg.is_friend = True
             else:
                 new_msg.is_friend = False
-            db.session.add(new_msg)
-            db.session.commit()
     socketio.emit('display_message', {data['user_id']: data['text']}, to=data['user_id'])
 
 @socketio.on('comment')
 def handle_comment(data):
     text = data.get('text', '').strip()
+    text = proccess_mentions(text)
     post_id = data.get('post_id')
     if text and post_id:
         comment = Comment(text=text, user_id=current_user.id, post_id=post_id)
@@ -165,6 +177,19 @@ def handle_comment(data):
             'post_id': post_id,
             'text': text,
             'author': current_user.username,
+            'timestamp': datetime.utcnow().strftime('%H:%M')
+        }, room=f"post_{post_id}")
+    if "@XAM_AI" in text:
+        bot = User.query.filter_by(username="XAM_AI").first()
+        reply = get_bot_response(text)
+        reply = f"@{current_user.username}, {reply}"
+        comment_by_bot = Comment(text=reply, user_id=bot.id, post_id=post_id)
+        db.session.add(comment_by_bot)
+        db.session.commit()
+        socketio.emit('display_comment', {
+            'post_id': post_id,
+            'text': reply,
+            'author': bot.username,
             'timestamp': datetime.utcnow().strftime('%H:%M')
         }, room=f"post_{post_id}")
 
@@ -265,6 +290,7 @@ def register():
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
+        email_pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
         password = request.form['password']
         confirm = request.form['confirm']
 
@@ -293,6 +319,10 @@ def register():
         proverka2 = User.query.filter_by(email=email).first()
         if proverka2:
             flash('такой email уже есть', 'danger')
+            return render_template('reg.html')
+        
+        if not re.match(email_pattern, email):
+            flash('Введите корректный email (например, name@examle.com или .ru)!', 'danger')
             return render_template('reg.html')
 
         novy_user = User()
@@ -404,18 +434,26 @@ def profile_friends(user_id):
 @login_required
 def friend_add(user_id):
     f = Friends()
-    f.user_id = current_user.id
-    f.friend_id = user_id
-    db.session.add(f)
+    existing = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
+    if existing:
+        existing.status = 'pending'
+        db.session.add(existing)
+    else:
+        new_request = Friends()
+        new_request.user_id = current_user.id
+        new_request.friend_id = user_id
+        db.session.add(new_request)
     db.session.commit()
-    return redirect(url_for('profile', user_id=user_id))
+    return redirect(request.referrer or url_for('profile', user_id=user_id))
 
 @app.route('/friends/remove/<int:user_id>', methods=['POST']) # система удаления друзей
 @login_required
 def friend_remove(user_id):
-    f = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
-    db.session.delete(f)
-    db.session.commit()
+    f = Friends.query.filter(((Friends.user_id == current_user.id) & (Friends.friend_id == user_id)) | ((Friends.user_id == user_id) & (Friends.friend_id == current_user.id))).first()
+
+    if f:
+        db.session.delete(f)
+        db.session.commit()
     return redirect(url_for('profile', user_id=user_id))
 
 @app.route('/friends/accept/<int:user_id>', methods=['POST']) # принятие заявки в друзья
