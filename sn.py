@@ -12,7 +12,7 @@ import uuid
 from aiassis import ai_bp, get_bot_response
 from flask_socketio import SocketIO, join_room
 import re
-
+from datetime import timedelta
 
 app = Flask(__name__, static_folder='style', static_url_path='/style')
 app.register_blueprint(ai_bp)
@@ -24,12 +24,25 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_IMAGE'] = 'C:/Users/redfy/Documents/social-network/instance/images'
 app.config['UPLOAD_VIDEO'] = 'C:/Users/redfy/Documents/social-network/instance/videos'
 
+@app.template_filter('localized_time')
+def localized_time(dt, user_tz_offset=0):
+    if not dt:
+        return ""
+    # Прибавляем смещение в часах
+    local_dt = dt + timedelta(hours=user_tz_offset)
+    return local_dt
+
 # база данных sql
 
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+@app.before_request
+def before_request():
+    if current_user.is_authenticated:
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
 
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
@@ -37,6 +50,13 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(64), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(256), nullable=False)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def is_online(self):
+        if self.last_seen:
+            return (datetime.utcnow() - self.last_seen).total_seconds() < 300 # 5 минут
+        return False
 
 class Post(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -45,6 +65,7 @@ class Post(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     photo = db.Column(db.String(256), nullable=True)
     video = db.Column(db.String(256), nullable=True)
+    is_edited = db.Column(db.Boolean, default=False)
     
     author = db.relationship('User', backref=db.backref('posts', lazy=True))
     likes = db.relationship('Like', backref='post', lazy=True, cascade="all, delete-orphan")
@@ -85,6 +106,7 @@ class Message(db.Model):
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     text = db.Column(db.Text, nullable=False)
     image = db.Column(db.String(256), nullable=True)
+    isai_image = db.Column(db.Boolean, default=False)
     video = db.Column(db.String(256), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     is_friend = db.Column(db.Boolean, default=False)
@@ -99,6 +121,7 @@ class Profile(db.Model):
     bio = db.Column(db.Text, nullable=True)
     avatar = db.Column(db.String(256), nullable=True)
     city = db.Column(db.String(128))
+    timezone_offset = db.Column(db.Integer, default=0) # Смещение от UTC
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('profile', uselist=False))
 
@@ -150,23 +173,30 @@ def handle_message(data):
             friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
             bot = User.query.filter_by(username="XAM_AI").first()
             if data['user_id'] == bot.id:
+                bot_response = get_bot_response(text)
                 new_msg.is_ai = True
                 new_msg.sender_id = current_user.id
                 bot_msg = Message()
                 bot_msg.sender_id = user_id
                 bot_msg.receiver_id = current_user.id
-                bot_msg.text = get_bot_response(text)
                 bot_msg.is_ai = True
+                if isinstance(bot_response, dict) and 'image_url' in bot_response:
+                    bot_msg.text = bot_response.get('text')
+                    bot_msg.image = bot_response.get('image_url')
+                    bot_msg.is_ai_image = True
+                    socketio.emit('display_message', {bot.id: bot_response}, to=current_user.id)
+                else:
+                    bot_msg.text = bot_response
+                    socketio.emit('display_message', {bot.id: bot_response}, to=current_user.id)
                 db.session.add(bot_msg)
                 db.session.commit()
-                socketio.emit('display_message', {current_user.id: bot_msg.text}, to=current_user.id)
             else:
                 new_msg.is_ai = False
             if friend:
                 new_msg.is_friend = True
             else:
                 new_msg.is_friend = False
-    socketio.emit('display_message', {data['user_id']: data['text']}, to=data['user_id'])
+    socketio.emit('display_message', {current_user.id: data['text']}, to=data['user_id'])
 
 @socketio.on('comment')
 def handle_comment(data):
@@ -234,6 +264,12 @@ def on_join_post(data):
         print(f"User joining room for post {post_id}")
 
 
+@app.before_request
+def before_request():
+    if current_user.is_authenticated:
+        current_user.last_seen = datetime.utcnow()
+        db.session.commit()
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -271,7 +307,37 @@ def new_post():
         post = Post(text=text, user_id=current_user.id, photo=image_filename, video=video_filename)
         db.session.add(post)
         db.session.commit()
-    return redirect(url_for('index'))
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/post/edit/<int:post_id>', methods=['POST'])
+@login_required
+def edit_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.user_id != current_user.id:
+        flash('Вы не можете редактировать чужой пост!', 'danger')
+        return redirect(url_for('index'))
+    
+    new_text = request.form.get('content', '').strip()
+    if new_text and new_text != post.text:
+        post.text = new_text[:250]
+        post.is_edited = True
+        db.session.commit()
+        flash('Пост обновлен!', 'success')
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/post/delete/<int:post_id>', methods=['POST'])
+@login_required
+def delete_post(post_id):
+    post = Post.query.get_or_404(post_id)
+    if post.user_id != current_user.id and current_user.username != 'admin':
+        flash('У вас нет прав для удаления этого поста!', 'danger')
+        return redirect(url_for('index'))
+    
+    # Удаляем связанные файлы (фото/видео), если нужно
+    db.session.delete(post)
+    db.session.commit()
+    flash('Пост удален!', 'success')
+    return redirect(request.referrer or url_for('index'))
 
 @app.route('/like/<int:post_id>', methods=['POST']) # лайки под постами
 @login_required
@@ -313,6 +379,11 @@ def serve_branding(filename):
 def terms():
     from flask import send_from_directory
     return send_from_directory(app.root_path, 'Правила пользования ХАМ.pdf')
+
+
+@app.route('/about') # о нас
+def about():
+    return render_template('about.html', user=current_user)
 
 
 @app.route('/register', methods=['GET', 'POST']) # регистрация
@@ -364,6 +435,10 @@ def register():
         novy_user.password = generate_password_hash(password)
         db.session.add(novy_user)
         db.session.commit()
+        novyy_profiel = Profile()
+        novyy_profiel.user_id = novy_user.id
+        db.session.add(novyy_profiel)
+        db.session.commit()
 
         flash('аккаунт создан! теперь войди', 'success')
         return redirect(url_for('login'))
@@ -401,6 +476,12 @@ def login():
 # апроуты ссылок
 @app.route('/logout')
 def logout():
+    if current_user.is_authenticated:
+        # Устанавливаем время последнего визита на 10 минут назад, 
+        # чтобы статус сразу сменился на "Не в сети"
+        from datetime import timedelta
+        current_user.last_seen = datetime.now() - timedelta(minutes=10)
+        db.session.commit()
     logout_user()
     return redirect(url_for('login'))
 
@@ -437,6 +518,16 @@ def messages_userid(user_id):
             new_msg.sender_id = current_user.id
             new_msg.receiver_id = user_id
             new_msg.text = text
+            file = request.files.get('image')
+            video = request.files.get('video')
+            if file:
+                new_msg.image = file.filename
+                file.save(os.path.join(app.config['UPLOAD_IMAGE'], file.filename))
+                if User.query.filter_by(username="XAM_AI").first() == True:
+                    new_msg.isai_image = True
+            if video:
+                new_msg.video = video.filename
+                video.save(os.path.join(app.config['UPLOAD_VIDEO'], video.filename))
             friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
             if friend:
                 new_msg.friend = True
@@ -463,9 +554,31 @@ def profile_friends(user_id):
     f = Friends.query.filter_by(user_id=user_id).all()
     return render_template('profile.html', user=current_user, other_user=u, friends=f)
 
+@app.route('/profile/<int:user_id>/edit', methods=['GET', 'POST']) # редактирование профиля
+@login_required
+def profile_edit(user_id):
+    u = User.query.get_or_404(user_id)
+    if u.id != current_user.id:
+        flash('Вы не можете редактировать профиль другого пользователя!', 'danger')
+        return redirect(url_for('profile', user_id=user_id))
+    if request.method == 'POST':
+        u.name = request.form.get('name')
+        u.bio = request.form.get('bio')
+        db.session.add(u)
+        db.session.commit()
+        flash('Профиль успешно обновлен!', 'success')
+    return render_template('profile.html', user=current_user, other_user=u)
+
 @app.route('/friends/add/<int:user_id>', methods=['POST']) # система добавления друзей
 @login_required
 def friend_add(user_id):
+    target_user = User.query.get_or_404(user_id)
+    
+    # Запрет добавления в друзья системных аккаунтов
+    if target_user.username in ["XAM_AI", "Поддержка"]:
+        flash('Этот аккаунт нельзя добавить в друзья.', 'danger')
+        return redirect(request.referrer or url_for('profile', user_id=user_id))
+
     f = Friends()
     existing = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
     if existing:
@@ -535,6 +648,33 @@ def change_password():
     return redirect(url_for('settings'))
 
 
+@app.route('/settings/update_profile', methods=['POST'])
+@login_required
+def update_profile():
+    if not current_user.profile:
+        profile = Profile(user_id=current_user.id)
+        db.session.add(profile)
+    else:
+        profile = current_user.profile
+
+    # Обновление текстовых данных
+    profile.bio = request.form.get('bio', '')
+    profile.city = request.form.get('city', '')
+    profile.timezone_offset = int(request.form.get('timezone_offset', 0))
+
+    # Обработка аватара
+    file = request.files.get('avatar')
+    if file and file.filename != '':
+        ext = file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif']:
+            filename = str(uuid.uuid4()) + "." + ext
+            file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
+            profile.avatar = filename
+
+    db.session.commit()
+    flash('Профиль успешно обновлен!', 'success')
+    return redirect(url_for('settings'))
+
 @app.route('/groups') # группы (в будущем)
 @login_required
 def groups():
@@ -560,8 +700,6 @@ def search_user(user_id):
     u = User.query.get_or_404(user_id)
     return render_template('search.html', user=current_user, other_user=u)
 
-
-
 if __name__ == '__main__': # запуск сайта
     with app.app_context():
         db.create_all()
@@ -583,6 +721,13 @@ if __name__ == '__main__': # запуск сайта
             db.session.add(ai_user)
             db.session.commit()
             print("--- Аккаунт XAM_AI создан! ---")
+        if not User.query.filter_by(username="Поддержка").first():
+            support_user = User(
+                username="Поддержка", 
+                email="support@xam.ru", 
+                password=generate_password_hash("support_secret_123")
+            )
+            db.session.add(support_user)
+            db.session.commit()
+            print("--- Аккаунт Поддержка создан! ---")
     app.run(debug=True, host='0.0.0.0')
-
-

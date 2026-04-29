@@ -7,166 +7,6 @@
     <title>XAM — Сообщения</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <style>
-        /* Typing Indicator Styles */
-        .typing-indicator {
-            padding: 8px 16px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            font-size: 0.8rem;
-            color: var(--primary-cyan);
-            margin-bottom: 10px;
-            display: none;
-            align-self: flex-start;
-            animation: fadeIn 0.3s ease;
-        }
-
-        .typing-dots span {
-            animation: dot-pulse 1.5s infinite;
-            display: inline-block;
-        }
-        .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes dot-pulse {
-            0%, 100% { opacity: 0.3; transform: translateY(0); }
-            50% { opacity: 1; transform: translateY(-2px); }
-        }
-        
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        .chat-container {
-            display: grid;
-            grid-template-columns: 320px 1fr;
-            height: calc(100vh - 160px);
-            gap: 20px;
-        }
-
-        .chat-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            overflow-y: auto;
-            padding-right: 8px;
-        }
-
-        .chat-window {
-            display: flex;
-            flex-direction: column;
-            background: rgba(10, 10, 15, 0.4);
-            border-radius: 24px;
-            border: 1px solid var(--border-color);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .chat-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--border-color);
-            background: rgba(255, 255, 255, 0.02);
-            backdrop-filter: blur(10px);
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .messages-area {
-            flex: 1;
-            padding: 24px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .message-bubble {
-            max-width: 70%;
-            padding: 12px 18px;
-            border-radius: 18px;
-            font-size: 0.95rem;
-            line-height: 1.4;
-            position: relative;
-        }
-
-        .msg-sent {
-            align-self: flex-end;
-            background: var(--gradient-glow);
-            color: #fff;
-            border-bottom-right-radius: 4px;
-        }
-
-        .msg-received {
-            align-self: flex-start;
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
-            border-bottom-left-radius: 4px;
-            border: 1px solid var(--border-color);
-        }
-
-        .chat-input-area {
-            padding: 20px 24px;
-            background: rgba(0, 0, 0, 0.2);
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            gap: 12px;
-        }
-
-        .chat-input {
-            flex: 1;
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 14px;
-            padding: 12px 16px;
-            color: #fff;
-            outline: none;
-            transition: var(--transition-smooth);
-        }
-
-        .chat-input:focus {
-            border-color: var(--primary-cyan);
-        }
-
-        .dialog-card {
-            padding: 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            transition: var(--transition-smooth);
-            text-decoration: none;
-            color: inherit;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid transparent;
-            border-radius: 16px;
-        }
-
-        .dialog-card:hover,
-        .dialog-card.active {
-            background: rgba(0, 240, 255, 0.08);
-            border-color: rgba(0, 240, 255, 0.3);
-        }
-
-        .dialog-info {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            flex: 1;
-        }
-
-        .dialog-name {
-            font-weight: 600;
-            font-size: 0.95rem;
-        }
-
-        .dialog-last {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 180px;
-        }
-    </style>
 </head>
 
 <body>
@@ -188,9 +28,7 @@
                 <a href="{{ url_for('messages') }}" class="u-nav-link">
                     <li class="nav-item active">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path
-                                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
-                            </path>
+                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
                         </svg>
                         XAM-Общения
                     </li>
@@ -215,7 +53,21 @@
                         XAM-Настройки
                     </li>
                 </a>
+                <a href="{{ url_for('about') }}" class="u-nav-link">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        О нас
+                    </li>
+                </a>
             </ul>
+
+            <div style="margin-top: auto; padding: 20px 24px; font-size: 0.8rem; color: var(--text-muted);">
+                <a href="{{ url_for('terms') }}" target="_blank" class="u-link-clean">Пользовательское соглашение</a>
+            </div>
         </aside>
 
         <header class="top-bar">
@@ -224,7 +76,7 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <input type="text" name="q" placeholder="Поиск в XAM..." value="{{ query }}">
+                <input type="text" name="q" placeholder="Поиск в XAM..." value="">
             </form>
             <div class="user-controls">
                 <a href="{{ url_for('logout') }}" class="btn-logout" title="Выход">
@@ -234,10 +86,15 @@
                         <line x1="21" y1="12" x2="9" y2="12"></line>
                     </svg>
                 </a>
-                <a href="{{ url_for('profile', user_id=user.id) }}" class="u-link-clean"
-                    style="display: flex; align-items: center; gap: 12px;">
+                <a href="{{ url_for('profile', user_id=user.id) }}" class="u-nav-link-clean">
                     <div class="user-profile">
-                        <div class="avatar">{{ user.username[0]|upper }}</div>
+                        <div class="avatar" style="overflow: hidden;">
+                            {% if user.profile and user.profile.avatar %}
+                                <img src="{{ url_for('serve_image', filename=user.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                            {% else %}
+                                {{ user.username[0]|upper }}
+                            {% endif %}
+                        </div>
                         <span style="font-weight: 500;">{{ user.username }}</span>
                     </div>
                 </a>
@@ -246,101 +103,164 @@
 
         <main class="main-content">
             <div class="chat-container">
-                <!-- Left Sidebar: Last Chats -->
                 <div class="chat-list">
-                    <h2 style="font-size: 1.2rem; margin-bottom: 8px;">Диалоги</h2>
-
-                    {# Собираем все сообщения и фильтруем вручную для совместимости #}
-                    {% set all_messages = (user.sent_messages + user.received_messages)|sort(attribute='timestamp',
-                    reverse=True) %}
+                    <h2 style="font-size: 1.3rem; margin-bottom: 20px; font-weight: 700;">Диалоги</h2>
+                    {% set pinned_usernames = ['XAM_AI', 'Поддержка'] %}
+                    {% set pinned_entries = [] %}
+                    {% set regular_entries = [] %}
+                    
+                    {% set all_messages = (user.sent_messages + user.received_messages)|sort(attribute='timestamp', reverse=True) %}
                     {% set seen = [] %}
-                    {% set found_any = [] %}
 
                     {% for msg in all_messages %}
-                    {% set partner_id = msg.receiver_id if msg.sender_id == user.id else msg.sender_id %}
-
-                    {% if partner_id not in seen %}
-                    {% if seen.append(partner_id) or true %}
-                    {% if found_any.append(true) or true %}{% endif %}
-                    {% set partner_user = msg.recipient if msg.sender_id == user.id else msg.sender %}
-
-                    <a href="{{ url_for('messages_userid', user_id=partner_id) }}"
-                        class="dialog-card {% if request.view_args.get('user_id') == partner_id %}active{% endif %}">
-                        <div class="avatar-small"
-                            style="width:40px; height:40px; border-radius:50%; background:var(--gradient-glow); display:flex; align-items:center; justify-content:center; font-weight:bold; color:#000;">
-                            {{ partner_user.username[0]|upper }}
-                        </div>
-                        <div class="dialog-info">
-                            <span class="dialog-name">{{ partner_user.username }}</span>
-                            <span class="dialog-last">{{ msg.text }}</span>
-                        </div>
-                    </a>
-                    {% endif %}
-                    {% endif %}
+                        {% set partner_id = msg.receiver_id if msg.sender_id == user.id else msg.sender_id %}
+                        {% if partner_id not in seen %}
+                            {% if seen.append(partner_id) or true %}
+                                {% set partner_user = msg.recipient if msg.sender_id == user.id else msg.sender %}
+                                {% set uname = partner_user.username|lower %}
+                                {% if 'xam_ai' in uname or 'поддерж' in uname or 'support' in uname %}
+                                    {% if pinned_entries.append((partner_id, partner_user, msg)) or true %}{% endif %}
+                                {% else %}
+                                    {% if regular_entries.append((partner_id, partner_user, msg)) or true %}{% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endif %}
                     {% endfor %}
 
-                    {% if not found_any %}
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 20px;">Нет активных диалогов</p>
+                    {# Container for auto-discovered pinned chats #}
+                    <div id="autoPinnedChats"></div>
+
+                    {# Render Pinned Chats from History #}
+                    {% if pinned_entries %}
+                        <div class="chat-section-label system-label" style="display: none;">
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2.5">
+                                <path d="M12 2L12 22M5 5L19 19"></path>
+                            </svg>
+                            Закрепленные
+                        </div>
+                        {% for partner_id, partner_user, msg in pinned_entries %}
+                            <a href="{{ url_for('messages_userid', user_id=partner_id) }}" class="dialog-card pinned active-chat {% if request.view_args.get('user_id') == partner_id %}active{% endif %}" data-username="{{ partner_user.username }}">
+                                <div class="avatar" style="flex-shrink: 0; overflow: hidden;">
+                                    {% if partner_user.profile and partner_user.profile.avatar %}
+                                        <img src="{{ url_for('serve_image', filename=partner_user.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    {% else %}
+                                        {{ partner_user.username[0]|upper }}
+                                    {% endif %}
+                                </div>
+                                <div style="flex: 1; overflow: hidden;">
+                                    <div class="dialog-name">
+                                        {{ partner_user.username }}
+                                        <svg class="pin-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                            <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="dialog-last" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ msg.text }}</div>
+                                </div>
+                            </a>
+                        {% endfor %}
+                        <div class="chat-separator"></div>
+                    {% endif %}
+
+                    {# Render Regular Chats #}
+                    {% for partner_id, partner_user, msg in regular_entries %}
+                        <a href="{{ url_for('messages_userid', user_id=partner_id) }}" class="dialog-card {% if request.view_args.get('user_id') == partner_id %}active{% endif %}">
+                            <div class="avatar" style="flex-shrink: 0; overflow: hidden;">
+                                {% if partner_user.profile and partner_user.profile.avatar %}
+                                    <img src="{{ url_for('serve_image', filename=partner_user.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                {% else %}
+                                    {{ partner_user.username[0]|upper }}
+                                {% endif %}
+                            </div>
+                            <div style="flex: 1; overflow: hidden;">
+                                <div class="dialog-name">{{ partner_user.username }}</div>
+                                <div class="dialog-last" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ msg.text }}</div>
+                            </div>
+                        </a>
+                    {% endfor %}
+
+                    {% if not pinned_entries and not regular_entries %}
+                        <div style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
+                            <p>Нет активных диалогов</p>
+                        </div>
                     {% endif %}
                 </div>
 
-                <!-- Right Side: Active Chat Window -->
                 <div class="chat-window">
                     {% if request.view_args.get('user_id') %}
-                    <div class="chat-header">
-                        <div class="avatar">?</div>
-                        <h3 style="font-size: 1.1rem; font-weight: 600;">
-                            {% if messages %}
-                            {# Достаем ник из первого попавшегося сообщения #}
-                            {% if messages[0].sender_id == user.id %}{{ messages[0].recipient.username }}{% else %}{{
-                            messages[0].sender.username }}{% endif %}
-                            {% else %}
-                            Чат
-                            {% endif %}
-                        </h3>
-                    </div>
+                        <div class="chat-header">
+                            <div class="avatar" id="headerAvatar" style="overflow: hidden;">
+                                {% set partner = messages[0].recipient if messages and messages[0].sender_id == user.id else (messages[0].sender if messages else None) %}
+                                {% if partner and partner.profile and partner.profile.avatar %}
+                                    <img src="{{ url_for('serve_image', filename=partner.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                {% else %}
+                                    ?
+                                {% endif %}
+                            </div>
+                            <h3 id="chatPartnerName">
+                                {% if messages %}
+                                    {% if messages[0].sender_id == user.id %}{{ messages[0].recipient.username }}{% else %}{{ messages[0].sender.username }}{% endif %}
+                                {% else %}
+                                    Чат
+                                {% endif %}
+                            </h3>
+                        </div>
 
                         <div class="messages-area" id="messagesArea">
                             {% if messages %}
-                            {% for msg in messages %}
-                            <div
-                                class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
-                                {{ msg.text }}
-                            </div>
-                            {% endfor %}
+                                {% for msg in messages %}
+                                    <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
+                                        {% if msg.text %}<div>{{ msg.text }}</div>{% endif %}
+                                        {% if msg.image %}
+                                            {% if msg.image.startswith('http') or msg.image.startswith('data:image') %}
+                                                <div class="msg-image-container">
+                                                    <img src="{{ msg.image }}" class="msg-image" alt="AI Generated Image" onclick="window.open(this.src)">
+                                                </div>
+                                            {% else %}
+                                                <div style="font-style: italic; font-size: 0.8rem; margin-top: 8px; color: var(--primary-pink);">
+                                                    Ошибка загрузки изображения: {{ msg.image }}
+                                                </div>
+                                            {% endif %}
+                                        {% endif %}
+                                    </div>
+                                {% endfor %}
                             {% else %}
-                            <div class="no-messages-tip" style="text-align: center; color: var(--text-muted); margin-top: 100px;">
-                                Нет сообщений. Напишите первым!
-                            </div>
+                                <div class="no-messages-tip" style="text-align: center; color: var(--text-muted); margin-top: 100px;">
+                                    Нет сообщений. Напишите первым!
+                                </div>
                             {% endif %}
                         </div>
 
                         <div class="typing-indicator" id="typingIndicator">
-                            Собеседник печатает<span class="typing-dots"><span>.</span><span>.</span><span>.</span></span>
+                            Собеседник печатает...
+                        </div>
+
+                        <div id="aiGenerating" style="display: none; padding: 12px 32px; font-size: 0.9rem; color: var(--primary-pink); align-items: center; gap: 8px;">
+                            <span class="magic-sparkles">✨</span> ИИ создает шедевр...
                         </div>
 
                         <form class="chat-input-area" id="chatForm">
-                            <input type="text" id="msgInput" class="chat-input" placeholder="Введите сообщение..." required
-                                autofocus autocomplete="off">
+                            <button type="button" class="btn-magic" id="magicBtn" title="Создать магию (Изображение)">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
+                                </svg>
+                            </button>
+                            <input type="text" id="msgInput" class="chat-input" placeholder="Введите сообщение..." required autofocus autocomplete="off">
                             <input type="hidden" id="recipientId" value="{{ request.view_args.get('user_id') }}">
-                            <button type="submit" class="btn-primary" style="padding: 10px 20px;">Отправить</button>
+                            <button type="submit" class="btn-primary">Отправить</button>
                         </form>
                     {% else %}
-                    <div
-                        style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted);">
-                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="1" style="margin-bottom: 16px; opacity: 0.3;">
-                            <path
-                                d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z">
-                            </path>
-                        </svg>
-                        <p>Выберите чат слева или найдите пользователя</p>
-                    </div>
+                        <div style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); padding: 40px;">
+                            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" style="margin-bottom: 24px; opacity: 0.2;">
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            <p style="font-size: 1.1rem;">Выберите чат, чтобы начать общение</p>
+                        </div>
                     {% endif %}
                 </div>
             </div>
         </main>
     </div>
+
     <script>
         const socket = io();
         const chatForm = document.getElementById('chatForm');
@@ -350,25 +270,33 @@
         const typingIndicator = document.getElementById('typingIndicator');
         let typingTimeout;
 
-        // Auto-scroll to bottom
         const scrollToBottom = () => {
-            messagesArea.scrollTop = messagesArea.scrollHeight;
+            if (messagesArea) {
+                messagesArea.scrollTo({
+                    top: messagesArea.scrollHeight,
+                    behavior: 'smooth'
+                });
+            }
         };
         scrollToBottom();
 
         if (recipientId) {
-            // Sending messages
+            const chatPartnerNameEl = document.getElementById('chatPartnerName');
+            const chatPartnerName = chatPartnerNameEl ? chatPartnerNameEl.textContent.trim() : '';
+            const headerAvatar = document.getElementById('headerAvatar');
+            if (headerAvatar && chatPartnerName) {
+                headerAvatar.textContent = chatPartnerName[0].toUpperCase();
+            }
+
             chatForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const text = msgInput.value.trim();
                 if (text) {
-                    // Send to server via socket
                     socket.emit('message', {
                         'text': text,
                         'user_id': parseInt(recipientId)
                     });
 
-                    // Add to UI immediately for sender
                     const div = document.createElement('div');
                     div.className = 'message-bubble msg-sent';
                     div.textContent = text;
@@ -383,40 +311,144 @@
                 }
             });
 
-            // Handle typing status
             msgInput.addEventListener('input', () => {
                 socket.emit('typing', { 'user_id': parseInt(recipientId) });
             });
 
-            // Receive messages
             socket.on('display_message', (data) => {
-                // Since user used {data['user_id']: data['text']} format
-                const text = data[Object.keys(data)[0]]; 
+                const senderId = Object.keys(data)[0];
+                const content = data[senderId]; 
                 
                 const div = document.createElement('div');
-                div.className = 'message-bubble msg-received';
-                div.textContent = text;
+                // Defensively handle senderId check (current_user.id is passed from Jinja)
+                div.className = 'message-bubble ' + (senderId == "{{ user.id }}" ? 'msg-sent' : 'msg-received');
+                
+                if (typeof content === 'object' && content.image_url) {
+                    // Check if it's a valid image URL to prevent 404 redirects
+                    const isUrl = content.image_url.startsWith('http') || content.image_url.startsWith('data:image');
+                    
+                    div.innerHTML = `
+                        ${content.text ? `<div>${content.text}</div>` : ''}
+                        ${isUrl ? `
+                            <div class="msg-image-container">
+                                <img src="${content.image_url}" class="msg-image" alt="AI Generated Image" onclick="window.open(this.src)">
+                            </div>
+                        ` : `<div class="msg-error">Ошибка генерации: ${content.image_url}</div>`}
+                    `;
+                } else {
+                    div.textContent = content;
+                }
+                
+                const indicator = document.getElementById('aiGenerating');
+                if (indicator) indicator.style.display = 'none';
+
                 messagesArea.appendChild(div);
                 scrollToBottom();
-                typingIndicator.style.display = 'none';
+                if(typingIndicator) typingIndicator.style.display = 'none';
             });
 
-            // Display typing
+            const magicBtn = document.getElementById('magicBtn');
+            const aiGenerating = document.getElementById('aiGenerating');
+            const isChattingWithAI = chatPartnerName.includes('XAM_AI');
+            
+            if (magicBtn) {
+                magicBtn.style.display = isChattingWithAI ? 'flex' : 'none';
+                magicBtn.onclick = () => {
+                    const userPrompt = window.prompt("Что вы хотите нарисовать?");
+                    if (userPrompt) {
+                        msgInput.value = `/draw ${userPrompt}`;
+                        chatForm.dispatchEvent(new Event('submit', { cancelable: true }));
+                        if(aiGenerating) aiGenerating.style.display = 'flex';
+                        scrollToBottom();
+                    }
+                };
+            }
+
             socket.on('display_typing', (data) => {
-                typingIndicator.style.display = 'block';
-                scrollToBottom();
-                
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    typingIndicator.style.display = 'none';
-                }, 3000);
+                if (typingIndicator) {
+                    typingIndicator.style.display = 'block';
+                    scrollToBottom();
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => {
+                        typingIndicator.style.display = 'none';
+                    }, 3000);
+                }
             });
 
             socket.on('display_stop_typing', () => {
-                typingIndicator.style.display = 'none';
+                if (typingIndicator) typingIndicator.style.display = 'none';
             });
         }
+
+        // --- Auto-pinning system chats logic ---
+        async function ensureSystemChats() {
+            const systemUsers = [
+                { name: 'XAM_AI', placeholder: 'Ваш ИИ-ассистент ✨' },
+                { name: 'Поддержка', placeholder: 'Служба поддержки XAM' }
+            ];
+            
+            const autoContainer = document.getElementById('autoPinnedChats');
+            const activeChats = Array.from(document.querySelectorAll('.active-chat')).map(el => el.dataset.username.toLowerCase());
+            let anyAdded = activeChats.length > 0;
+
+            for (const sys of systemUsers) {
+                // If it's already in the list from history, skip it
+                if (activeChats.some(name => name.includes(sys.name.toLowerCase()))) {
+                    continue;
+                }
+
+                try {
+                    // Search for the user to get their ID
+                    const resp = await fetch(`/search?q=${sys.name}`);
+                    const html = await resp.text();
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const link = doc.querySelector('.search-result-card a[href*="/messages/"]');
+                    
+                    if (link) {
+                        const href = link.getAttribute('href');
+                        const userId = href.split('/').pop();
+                        const currentChatId = "{{ request.view_args.get('user_id') }}";
+                        const isActive = currentChatId === userId;
+
+                        const cardHtml = `
+                            <a href="${href}" class="dialog-card pinned ${isActive ? 'active' : ''}">
+                                <div class="avatar" style="flex-shrink: 0;">${sys.name[0]}</div>
+                                <div style="flex: 1; overflow: hidden;">
+                                    <div class="dialog-name">
+                                        ${sys.name}
+                                        <svg class="pin-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                                            <path d="M16,12V4H17V2H7V4H8V12L6,14V16H11.2V22H12.8V16H18V14L16,12Z"></path>
+                                        </svg>
+                                    </div>
+                                    <div class="dialog-last" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.6;">${sys.placeholder}</div>
+                                </div>
+                            </a>
+                        `;
+                        autoContainer.insertAdjacentHTML('beforeend', cardHtml);
+                        anyAdded = true;
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch system user:", sys.name, e);
+                }
+            }
+
+            if (anyAdded) {
+                const label = `
+                    <div class="chat-section-label">
+                        <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2.5">
+                            <path d="M12 2L12 22M5 5L19 19"></path>
+                        </svg>
+                        Закрепленные
+                    </div>
+                `;
+                autoContainer.insertAdjacentHTML('afterbegin', label);
+                if (!document.querySelector('.chat-separator')) {
+                     autoContainer.insertAdjacentHTML('beforeend', '<div class="chat-separator"></div>');
+                }
+            }
+        }
+
+        ensureSystemChats();
     </script>
 </body>
-
 </html>
