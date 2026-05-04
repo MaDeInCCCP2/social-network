@@ -28,8 +28,13 @@ app.config['UPLOAD_VIDEO'] = 'C:/Users/redfy/Documents/social-network/instance/v
 def localized_time(dt, user_tz_offset=0):
     if not dt:
         return ""
-    # Прибавляем смещение в часах
-    local_dt = dt + timedelta(hours=user_tz_offset)
+    # Пытаемся преобразовать смещение в число, если не получается - используем 0
+    try:
+        offset = int(user_tz_offset)
+    except (TypeError, ValueError, Exception):
+        offset = 0
+    
+    local_dt = dt + timedelta(hours=offset)
     return local_dt
 
 # база данных sql
@@ -104,7 +109,7 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     receiver_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    text = db.Column(db.Text, nullable=False)
+    text = db.Column(db.Text, nullable=True)
     image = db.Column(db.String(256), nullable=True)
     isai_image = db.Column(db.Boolean, default=False)
     video = db.Column(db.String(256), nullable=True)
@@ -124,6 +129,17 @@ class Profile(db.Model):
     timezone_offset = db.Column(db.Integer, default=0) # Смещение от UTC
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('profile', uselist=False))
+
+class StickerPack(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(64), unique=True, nullable=False)
+    
+    stickers = db.relationship('Sticker', backref='pack', lazy=True, cascade="all, delete-orphan")
+
+class Sticker(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    pack_id = db.Column(db.Integer, db.ForeignKey('sticker_pack.id'), nullable=False)
+    filename = db.Column(db.String(256), nullable=False)
 
 class Friends(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -161,42 +177,132 @@ def handle_stop_typing(data):
 
 @socketio.on('message')
 def handle_message(data):
-    text = data['text']
-    user_id = data['user_id']
-    if text:
-            new_msg = Message()
-            new_msg.sender_id = current_user.id
-            new_msg.receiver_id = data['user_id']
-            new_msg.text = data['text']
-            db.session.add(new_msg)
+    text = data.get('text', '').strip()
+    user_id = data.get('user_id')
+    image = data.get('image')
+    video = data.get('video')
+    
+    if not user_id:
+        return
+
+    if text or image or video:
+        new_msg = Message()
+        new_msg.sender_id = current_user.id
+        new_msg.receiver_id = user_id
+        new_msg.text = text
+        new_msg.image = image
+        new_msg.video = video
+        
+        db.session.add(new_msg)
+        db.session.commit()
+        
+        friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
+        bot = User.query.filter_by(username="XAM_AI").first()
+        
+        if user_id == bot.id:
+            bot_response = get_bot_response(text)
+            new_msg.is_ai = True
+            
+            bot_msg = Message()
+            bot_msg.sender_id = user_id
+            bot_msg.receiver_id = current_user.id
+            bot_msg.is_ai = True
+            
+            if isinstance(bot_response, dict) and 'image_url' in bot_response:
+                bot_msg.text = bot_response.get('text')
+                bot_msg.image = bot_response.get('image_url')
+                bot_msg.is_ai_image = True
+                socketio.emit('display_message', {
+                    'sender_id': bot.id,
+                    'text': bot_msg.text,
+                    'image': bot_msg.image,
+                    'is_ai': True
+                }, to=current_user.id)
+            else:
+                bot_msg.text = bot_response
+                socketio.emit('display_message', {
+                    'sender_id': bot.id,
+                    'text': bot_msg.text,
+                    'is_ai': True
+                }, to=current_user.id)
+            db.session.add(bot_msg)
             db.session.commit()
-            friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
-            bot = User.query.filter_by(username="XAM_AI").first()
-            if data['user_id'] == bot.id:
-                bot_response = get_bot_response(text)
-                new_msg.is_ai = True
-                new_msg.sender_id = current_user.id
-                bot_msg = Message()
-                bot_msg.sender_id = user_id
-                bot_msg.receiver_id = current_user.id
-                bot_msg.is_ai = True
-                if isinstance(bot_response, dict) and 'image_url' in bot_response:
-                    bot_msg.text = bot_response.get('text')
-                    bot_msg.image = bot_response.get('image_url')
-                    bot_msg.is_ai_image = True
-                    socketio.emit('display_message', {bot.id: bot_response}, to=current_user.id)
-                else:
-                    bot_msg.text = bot_response
-                    socketio.emit('display_message', {bot.id: bot_response}, to=current_user.id)
-                db.session.add(bot_msg)
-                db.session.commit()
-            else:
-                new_msg.is_ai = False
-            if friend:
-                new_msg.is_friend = True
-            else:
-                new_msg.is_friend = False
-    socketio.emit('display_message', {current_user.id: data['text']}, to=data['user_id'])
+        else:
+            new_msg.is_ai = False
+            
+        if friend:
+            new_msg.is_friend = True
+        else:
+            new_msg.is_friend = False
+            
+        socketio.emit('display_message', {
+            'sender_id': current_user.id,
+            'text': text,
+            'image': image,
+            'video': video,
+            'is_ai': False
+        }, to=user_id)
+
+@app.route('/messages/upload', methods=['POST'])
+@login_required
+def upload_message_file():
+    file = request.files.get('file')
+    if not file:
+        return {'error': 'No file'}, 400
+    
+    ext = file.filename.split('.')[-1].lower()
+    filename = str(uuid.uuid4()) + "." + ext
+    
+    if ext in ['jpg', 'jpeg', 'png', 'gif']:
+        file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
+        return {'filename': filename, 'type': 'image'}
+    elif ext in ['mp4', 'avi', 'mov', 'mkv']:
+        file.save(os.path.join(app.config['UPLOAD_VIDEO'], filename))
+        return {'filename': filename, 'type': 'video'}
+    
+    return {'error': 'Invalid file type'}, 400
+
+@app.route('/api/stickers')
+@login_required
+def get_stickers():
+    images_dir = app.config['UPLOAD_IMAGE']
+    emoji = []
+    stickers = []
+    gifs = []
+    
+    if os.path.exists(images_dir):
+        for file in os.listdir(images_dir):
+            file_url = url_for('serve_image', filename=file)
+            # Если файл не начинается с нужного префикса, но это картинка, можно тоже куда-то кидать,
+            # но мы фильтруем как просил пользователь
+            if file.startswith('emoji_'):
+                emoji.append(file_url)
+            elif file.startswith('sticker_'):
+                stickers.append(file_url)
+            elif file.startswith('gif_') or file.endswith('.gif'):
+                gifs.append(file_url)
+                
+    return {'emoji': emoji, 'stickers': stickers, 'gifs': gifs}
+
+
+@app.route('/api/stickers/upload', methods=['POST'])
+@login_required
+def upload_sticker():
+    file = request.files.get('file')
+    category = request.form.get('category', 'sticker')
+    
+    if not file:
+        return {'error': 'No file'}, 400
+        
+    ext = file.filename.split('.')[-1].lower()
+    
+    if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+        return {'error': 'Invalid file type'}, 400
+        
+    filename = f"{category}_{uuid.uuid4()}.{ext}"
+    file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
+    
+    return {'status': 'ok', 'url': url_for('serve_image', filename=filename)}
 
 @socketio.on('comment')
 def handle_comment(data):
@@ -730,4 +836,13 @@ if __name__ == '__main__': # запуск сайта
             db.session.add(support_user)
             db.session.commit()
             print("--- Аккаунт Поддержка создан! ---")
+
+        # Автоматическое создание недостающих профилей для всех пользователей
+        users_without_profiles = User.query.filter(~User.id.in_(db.session.query(Profile.user_id))).all()
+        for u in users_without_profiles:
+            new_p = Profile(user_id=u.id)
+            db.session.add(new_p)
+        if users_without_profiles:
+            db.session.commit()
+            print(f"--- Создано {len(users_without_profiles)} недостающих профилей ---")
     app.run(debug=True, host='0.0.0.0')

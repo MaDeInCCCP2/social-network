@@ -209,18 +209,22 @@
                             {% if messages %}
                                 {% for msg in messages %}
                                     <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
-                                        {% if msg.text %}<div>{{ msg.text }}</div>{% endif %}
                                         {% if msg.image %}
-                                            {% if msg.image.startswith('http') or msg.image.startswith('data:image') %}
-                                                <div class="msg-image-container">
-                                                    <img src="{{ msg.image }}" class="msg-image" alt="AI Generated Image" onclick="window.open(this.src)">
-                                                </div>
-                                            {% else %}
-                                                <div style="font-style: italic; font-size: 0.8rem; margin-top: 8px; color: var(--primary-pink);">
-                                                    Ошибка загрузки изображения: {{ msg.image }}
-                                                </div>
-                                            {% endif %}
+                                            <div class="msg-media-container">
+                                                {% if msg.image.startswith('http') or msg.image.startswith('data:image') %}
+                                                    <img src="{{ msg.image }}" class="msg-media-img" onclick="window.open(this.src)">
+                                                {% else %}
+                                                    <img src="{{ url_for('serve_image', filename=msg.image) }}" class="msg-media-img" onclick="window.open(this.src)">
+                                                {% endif %}
+                                            </div>
                                         {% endif %}
+                                        {% if msg.video %}
+                                            <div class="msg-media-container">
+                                                <video src="{{ url_for('serve_video', filename=msg.video) }}" class="msg-media-video" controls></video>
+                                            </div>
+                                        {% endif %}
+                                        {% if msg.text %}<div class="msg-text">{{ msg.text }}</div>{% endif %}
+                                        <div class="msg-time">{{ msg.timestamp.strftime('%H:%M') }}</div>
                                     </div>
                                 {% endfor %}
                             {% else %}
@@ -234,19 +238,99 @@
                             Собеседник печатает...
                         </div>
 
+                        <div id="filePreview" class="file-preview-bar" style="display: none;">
+                            <div class="preview-content">
+                                <div id="previewMedia"></div>
+                                <div class="preview-info">
+                                    <span id="previewName"></span>
+                                    <button type="button" class="btn-remove-file" onclick="clearFile()">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
                         <div id="aiGenerating" style="display: none; padding: 12px 32px; font-size: 0.9rem; color: var(--primary-pink); align-items: center; gap: 8px;">
                             <span class="magic-sparkles">✨</span> ИИ создает шедевр...
                         </div>
 
                         <form class="chat-input-area" id="chatForm">
+                            <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*">
+                            
+                            <!-- Sticker/Emoji Picker Toggle -->
+                            <button type="button" class="btn-picker-toggle" id="pickerToggle" title="Стикеры и эмодзи">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+                                    <line x1="9" y1="9" x2="9.01" y2="9"></line>
+                                    <line x1="15" y1="9" x2="15.01" y2="9"></line>
+                                </svg>
+                            </button>
+
+                            <!-- Attachment Button -->
+                            <button type="button" class="btn-attach" onclick="document.getElementById('fileInput').click()" title="Прикрепить файл">
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path>
+                                </svg>
+                            </button>
+
+                            <!-- TG-style Picker Panel -->
+                            <div class="tg-picker-panel" id="tgPicker">
+                                <div class="picker-header">
+                                    <div class="picker-tabs">
+                                        <div class="picker-tab" data-tab="emoji">Emoji</div>
+                                        <div class="picker-tab active" data-tab="stickers">Stickers</div>
+                                        <div class="picker-tab" data-tab="gifs">GIFs</div>
+                                    </div>
+                                </div>
+                                <div class="picker-search" style="display: flex; align-items: center;">
+                                    <div class="search-input-wrap" style="flex: 1;">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                                        <input type="text" placeholder="Search">
+                                    </div>
+                                    <button type="button" id="btnAddMedia" title="Добавить свои стикеры" style="margin-left: 10px; background: rgba(0, 240, 255, 0.1); border: 1px solid var(--primary-cyan); color: var(--primary-cyan); border-radius: 8px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: 0.2s;">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    </button>
+                                    <input type="file" id="mediaUploadInput" style="display: none;" accept="image/*">
+                                </div>
+                                <div class="picker-content" id="pickerContent">
+                                    <div id="tab-emoji" class="picker-tab-content" style="display: none;">
+                                        <div class="sticker-grid" id="grid-emoji"></div>
+                                    </div>
+                                    <div id="tab-stickers" class="picker-tab-content" style="display: block;">
+                                        <div class="sticker-grid" id="grid-stickers"></div>
+                                    </div>
+                                    <div id="tab-gifs" class="picker-tab-content" style="display: none;">
+                                        <div class="sticker-grid" id="grid-gifs"></div>
+                                    </div>
+                                </div>
+                                <div class="picker-footer">
+                                    <div class="footer-icons">
+                                        <button class="footer-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></button>
+                                        <button class="footer-btn"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></button>
+                                        <div class="footer-separator"></div>
+                                        <div class="recent-stickers-nav">
+                                            <div class="mini-sticker active"></div>
+                                            <div class="mini-sticker"></div>
+                                            <div class="mini-sticker"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <button type="button" class="btn-magic" id="magicBtn" title="Создать магию (Изображение)">
                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path>
                                 </svg>
                             </button>
-                            <input type="text" id="msgInput" class="chat-input" placeholder="Введите сообщение..." required autofocus autocomplete="off">
+                            <input type="text" id="msgInput" class="chat-input" placeholder="Введите сообщение..." autofocus autocomplete="off">
                             <input type="hidden" id="recipientId" value="{{ request.view_args.get('user_id') }}">
-                            <button type="submit" class="btn-primary">Отправить</button>
+                            <button type="submit" class="btn-primary" id="sendBtn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                </svg>
+                            </button>
                         </form>
                     {% else %}
                         <div style="flex:1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); padding: 40px;">
@@ -265,47 +349,121 @@
         const socket = io();
         const chatForm = document.getElementById('chatForm');
         const msgInput = document.getElementById('msgInput');
+        const fileInput = document.getElementById('fileInput');
         const messagesArea = document.getElementById('messagesArea');
         const recipientId = document.getElementById('recipientId')?.value;
         const typingIndicator = document.getElementById('typingIndicator');
+        const filePreview = document.getElementById('filePreview');
+        const previewMedia = document.getElementById('previewMedia');
+        const previewName = document.getElementById('previewName');
+        
         let typingTimeout;
+        let selectedFile = null;
 
         const scrollToBottom = () => {
             if (messagesArea) {
-                messagesArea.scrollTo({
-                    top: messagesArea.scrollHeight,
-                    behavior: 'smooth'
-                });
+                messagesArea.scrollTop = messagesArea.scrollHeight;
             }
         };
         scrollToBottom();
 
+        function clearFile() {
+            selectedFile = null;
+            fileInput.value = '';
+            filePreview.style.display = 'none';
+            previewMedia.innerHTML = '';
+        }
+
+        if (fileInput) {
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    selectedFile = file;
+                    filePreview.style.display = 'block';
+                    previewName.textContent = file.name;
+                    
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        if (file.type.startsWith('image/')) {
+                            previewMedia.innerHTML = `<img src="${ev.target.result}" style="height: 40px; border-radius: 4px;">`;
+                        } else {
+                            previewMedia.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><polygon points="8 21 16 21 12 17 8 21"></polygon></svg>`;
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+        }
+
+        function createMessageBubble(data, isSent) {
+            const div = document.createElement('div');
+            div.className = `message-bubble ${isSent ? 'msg-sent' : 'msg-received'}`;
+            
+            let mediaHtml = '';
+            if (data.image) {
+                const src = (data.image.startsWith('http') || data.image.startsWith('data:image')) 
+                    ? data.image 
+                    : `/image/${data.image}`;
+                mediaHtml = `<div class="msg-media-container"><img src="${src}" class="msg-media-img" onclick="window.open(this.src)"></div>`;
+            } else if (data.video) {
+                mediaHtml = `<div class="msg-media-container"><video src="/video/${data.video}" class="msg-media-video" controls></video></div>`;
+            }
+
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            div.innerHTML = `
+                ${mediaHtml}
+                ${data.text ? `<div class="msg-text">${data.text}</div>` : ''}
+                <div class="msg-time">${time}</div>
+            `;
+            return div;
+        }
+
         if (recipientId) {
             const chatPartnerNameEl = document.getElementById('chatPartnerName');
             const chatPartnerName = chatPartnerNameEl ? chatPartnerNameEl.textContent.trim() : '';
-            const headerAvatar = document.getElementById('headerAvatar');
-            if (headerAvatar && chatPartnerName) {
-                headerAvatar.textContent = chatPartnerName[0].toUpperCase();
-            }
-
-            chatForm.addEventListener('submit', (e) => {
+            
+            chatForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const text = msgInput.value.trim();
-                if (text) {
-                    socket.emit('message', {
-                        'text': text,
-                        'user_id': parseInt(recipientId)
-                    });
+                
+                if (text || selectedFile) {
+                    let mediaData = {};
+                    
+                    if (selectedFile) {
+                        const formData = new FormData();
+                        formData.append('file', selectedFile);
+                        
+                        try {
+                            const resp = await fetch('/messages/upload', {
+                                method: 'POST',
+                                body: formData
+                            });
+                            const result = await resp.json();
+                            if (result.filename) {
+                                mediaData[result.type] = result.filename;
+                            }
+                        } catch (err) {
+                            console.error('Upload failed', err);
+                        }
+                    }
 
-                    const div = document.createElement('div');
-                    div.className = 'message-bubble msg-sent';
-                    div.textContent = text;
-                    messagesArea.appendChild(div);
+                    const messageData = {
+                        'text': text,
+                        'user_id': parseInt(recipientId),
+                        ...mediaData
+                    };
+
+                    socket.emit('message', messageData);
+
+                    const bubble = createMessageBubble(messageData, true);
+                    messagesArea.appendChild(bubble);
                     
                     const emptyTip = document.querySelector('.no-messages-tip');
                     if(emptyTip) emptyTip.style.display = 'none';
 
                     msgInput.value = '';
+                    clearFile();
                     scrollToBottom();
                     socket.emit('stop_typing', { 'user_id': parseInt(recipientId) });
                 }
@@ -316,33 +474,14 @@
             });
 
             socket.on('display_message', (data) => {
-                const senderId = Object.keys(data)[0];
-                const content = data[senderId]; 
-                
-                const div = document.createElement('div');
-                // Defensively handle senderId check (current_user.id is passed from Jinja)
-                div.className = 'message-bubble ' + (senderId == "{{ user.id }}" ? 'msg-sent' : 'msg-received');
-                
-                if (typeof content === 'object' && content.image_url) {
-                    // Check if it's a valid image URL to prevent 404 redirects
-                    const isUrl = content.image_url.startsWith('http') || content.image_url.startsWith('data:image');
-                    
-                    div.innerHTML = `
-                        ${content.text ? `<div>${content.text}</div>` : ''}
-                        ${isUrl ? `
-                            <div class="msg-image-container">
-                                <img src="${content.image_url}" class="msg-image" alt="AI Generated Image" onclick="window.open(this.src)">
-                            </div>
-                        ` : `<div class="msg-error">Ошибка генерации: ${content.image_url}</div>`}
-                    `;
-                } else {
-                    div.textContent = content;
-                }
+                // Now data is the whole object: { sender_id, text, image, video, is_ai }
+                const isSent = data.sender_id == "{{ user.id }}";
+                const bubble = createMessageBubble(data, isSent);
                 
                 const indicator = document.getElementById('aiGenerating');
                 if (indicator) indicator.style.display = 'none';
 
-                messagesArea.appendChild(div);
+                messagesArea.appendChild(bubble);
                 scrollToBottom();
                 if(typingIndicator) typingIndicator.style.display = 'none';
             });
@@ -378,6 +517,134 @@
             socket.on('display_stop_typing', () => {
                 if (typingIndicator) typingIndicator.style.display = 'none';
             });
+
+            // --- Sticker Picker Logic ---
+            const pickerToggle = document.getElementById('pickerToggle');
+            const tgPicker = document.getElementById('tgPicker');
+            const gridEmoji = document.getElementById('grid-emoji');
+            const gridStickers = document.getElementById('grid-stickers');
+            const gridGifs = document.getElementById('grid-gifs');
+
+            async function populateStickers() {
+                try {
+                    const resp = await fetch('/api/stickers');
+                    const data = await resp.json();
+                    
+                    gridEmoji.innerHTML = '';
+                    gridStickers.innerHTML = '';
+                    gridGifs.innerHTML = '';
+                    
+                    const renderItems = (items, container) => {
+                        if(items.length === 0) {
+                            container.innerHTML = '<div style="grid-column: 1/-1; text-align:center; color: var(--text-muted); font-size: 0.9rem; padding: 20px;">Нет файлов. Добавьте их в папку images</div>';
+                            return;
+                        }
+                        items.forEach(url => {
+                            const item = document.createElement('div');
+                            item.className = 'sticker-item';
+                            item.innerHTML = `<img src="${url}" alt="media" loading="lazy">`;
+                            item.onclick = () => {
+                                sendSticker(url);
+                                tgPicker.style.display = 'none';
+                                pickerToggle.classList.remove('active');
+                            };
+                            container.appendChild(item);
+                        });
+                    };
+
+                    renderItems(data.emoji, gridEmoji);
+                    renderItems(data.stickers, gridStickers);
+                    renderItems(data.gifs, gridGifs);
+                } catch (err) {
+                    console.error('Failed to fetch stickers', err);
+                }
+            }
+
+            function sendSticker(url) {
+                const messageData = {
+                    'text': '',
+                    'user_id': parseInt(recipientId),
+                    'image': url 
+                };
+                socket.emit('message', messageData);
+                const bubble = createMessageBubble(messageData, true);
+                messagesArea.appendChild(bubble);
+                scrollToBottom();
+            }
+
+            pickerToggle.onclick = (e) => {
+                e.stopPropagation();
+                const isHidden = window.getComputedStyle(tgPicker).display === 'none';
+                if (isHidden) {
+                    tgPicker.style.display = 'flex';
+                    pickerToggle.classList.add('active');
+                    populateStickers();
+                } else {
+                    tgPicker.style.display = 'none';
+                    pickerToggle.classList.remove('active');
+                }
+            };
+
+            document.addEventListener('click', (e) => {
+                if (!tgPicker.contains(e.target) && e.target !== pickerToggle) {
+                    tgPicker.style.display = 'none';
+                    pickerToggle.classList.remove('active');
+                }
+            });
+
+            // Tab switching
+            document.querySelectorAll('.picker-tab').forEach(tab => {
+                tab.onclick = () => {
+                    document.querySelectorAll('.picker-tab').forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+                    
+                    document.querySelectorAll('.picker-tab-content').forEach(c => c.style.display = 'none');
+                    document.getElementById('tab-' + tab.dataset.tab).style.display = 'block';
+                };
+            });
+
+            // Media upload
+            const btnAddMedia = document.getElementById('btnAddMedia');
+            const mediaUploadInput = document.getElementById('mediaUploadInput');
+            if (btnAddMedia && mediaUploadInput) {
+                btnAddMedia.onclick = (e) => {
+                    e.stopPropagation();
+                    mediaUploadInput.click();
+                };
+                mediaUploadInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const activeTab = document.querySelector('.picker-tab.active').dataset.tab;
+                    let category = 'sticker';
+                    if (activeTab === 'emoji') category = 'emoji';
+                    if (activeTab === 'gifs') category = 'gif';
+                    
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('category', category);
+                    
+                    btnAddMedia.style.opacity = '0.5';
+                    try {
+                        const resp = await fetch('/api/stickers/upload', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await resp.json();
+                        if (result.status === 'ok') {
+                            populateStickers(); // Refresh grid
+                        } else {
+                            alert('Ошибка загрузки: ' + result.error);
+                        }
+                    } catch (err) {
+                        console.error(err);
+                        alert('Ошибка загрузки файла');
+                    }
+                    mediaUploadInput.value = '';
+                    btnAddMedia.style.opacity = '1';
+                };
+            }
+
         }
 
         // --- Auto-pinning system chats logic ---
