@@ -474,6 +474,11 @@
             });
 
             socket.on('display_message', (data) => {
+                // Check if the message belongs to the current chat
+                if (data.sender_id != recipientId && data.sender_id != "{{ user.id }}") {
+                    return; // Ignore messages not meant for the currently open chat window
+                }
+                
                 // Now data is the whole object: { sender_id, text, image, video, is_ai }
                 const isSent = data.sender_id == "{{ user.id }}";
                 const bubble = createMessageBubble(data, isSent);
@@ -504,6 +509,8 @@
             }
 
             socket.on('display_typing', (data) => {
+                if (data.user_id != recipientId) return;
+                
                 if (typingIndicator) {
                     typingIndicator.style.display = 'block';
                     scrollToBottom();
@@ -514,7 +521,9 @@
                 }
             });
 
-            socket.on('display_stop_typing', () => {
+            socket.on('display_stop_typing', (data) => {
+                if (data && data.user_id != recipientId) return;
+                
                 if (typingIndicator) typingIndicator.style.display = 'none';
             });
 

@@ -163,17 +163,17 @@ def proccess_mentions(text):
 
 @socketio.on('connect')
 def on_connect():
-    user_id = current_user.id
+    user_id = str(current_user.id)
     join_room(user_id)
     print(f"User {user_id} connected and joined room {user_id}")
 
 @socketio.on('typing')
 def handle_typing(data):
-    socketio.emit('display_typing', {'user_id': current_user.id}, to=data['user_id'])
+    socketio.emit('display_typing', {'user_id': current_user.id}, to=str(data['user_id']))
 
 @socketio.on('stop_typing')
 def handle_stop_typing(data):
-    socketio.emit('display_stop_typing', {'user_id': current_user.id}, to=data['user_id'])
+    socketio.emit('display_stop_typing', {'user_id': current_user.id}, to=str(data['user_id']))
 
 @socketio.on('message')
 def handle_message(data):
@@ -217,14 +217,14 @@ def handle_message(data):
                     'text': bot_msg.text,
                     'image': bot_msg.image,
                     'is_ai': True
-                }, to=current_user.id)
+                }, to=str(current_user.id))
             else:
                 bot_msg.text = bot_response
                 socketio.emit('display_message', {
                     'sender_id': bot.id,
                     'text': bot_msg.text,
                     'is_ai': True
-                }, to=current_user.id)
+                }, to=str(current_user.id))
             db.session.add(bot_msg)
             db.session.commit()
         else:
@@ -241,7 +241,7 @@ def handle_message(data):
             'image': image,
             'video': video,
             'is_ai': False
-        }, to=user_id)
+        }, to=str(user_id))
 
 @app.route('/messages/upload', methods=['POST'])
 @login_required
