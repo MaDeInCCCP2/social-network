@@ -33,6 +33,17 @@
                         XAM-Общения
                     </li>
                 </a>
+                <a href="{{ url_for('groups') }}" class="u-nav-link">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Сообщества
+                    </li>
+                </a>
                 <a href="{{ url_for('friends') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -208,7 +219,13 @@
                         <div class="messages-area" id="messagesArea">
                             {% if messages %}
                                 {% for msg in messages %}
-                                    <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}">
+                                    <div class="message-bubble {% if msg.sender_id == user.id %}msg-sent{% else %}msg-received{% endif %}" id="msg-bubble-{{ msg.id }}">
+                                        {% if msg.sender_id == user.id %}
+                                            <div class="msg-actions">
+                                                <button onclick="editMsg('{{ msg.id }}')" title="Изменить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                                                <button onclick="deleteMsg('{{ msg.id }}')" title="Удалить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                                            </div>
+                                        {% endif %}
                                         {% if msg.image %}
                                             <div class="msg-media-container">
                                                 {% if msg.image.startswith('http') or msg.image.startswith('data:image') %}
@@ -223,7 +240,7 @@
                                                 <video src="{{ url_for('serve_video', filename=msg.video) }}" class="msg-media-video" controls></video>
                                             </div>
                                         {% endif %}
-                                        {% if msg.text %}<div class="msg-text">{{ msg.text }}</div>{% endif %}
+                                        {% if msg.text %}<div class="msg-text" id="msg-text-{{ msg.id }}">{{ msg.text }}</div>{% endif %}
                                         <div class="msg-time">{{ msg.timestamp.strftime('%H:%M') }}</div>
                                     </div>
                                 {% endfor %}
@@ -347,6 +364,34 @@
 
     <script>
         const socket = io();
+
+        let editingMessageId = null;
+
+        function deleteMsg(id) {
+            if (confirm('Удалить сообщение?')) {
+                socket.emit('delete_message', { message_id: id });
+            }
+        }
+
+        function editMsg(id) {
+            const textEl = document.getElementById('msg-text-' + id);
+            if (textEl) {
+                editingMessageId = id;
+                msgInput.value = textEl.innerText;
+                msgInput.focus();
+            }
+        }
+
+        socket.on('message_deleted', (data) => {
+            const bubble = document.getElementById('msg-bubble-' + data.message_id);
+            if (bubble) bubble.remove();
+        });
+
+        socket.on('message_edited', (data) => {
+            const textEl = document.getElementById('msg-text-' + data.message_id);
+            if (textEl) textEl.innerText = data.text;
+        });
+
         const chatForm = document.getElementById('chatForm');
         const msgInput = document.getElementById('msgInput');
         const fileInput = document.getElementById('fileInput');
@@ -411,9 +456,22 @@
 
             const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
+            if (data.message_id) {
+                div.id = 'msg-bubble-' + data.message_id;
+            }
+            let actionsHtml = '';
+            if (isSent && data.message_id) {
+                actionsHtml = `
+                    <div class="msg-actions">
+                        <button onclick="editMsg('${data.message_id}')" title="Изменить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        <button onclick="deleteMsg('${data.message_id}')" title="Удалить"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                    </div>
+                `;
+            }
             div.innerHTML = `
+                ${actionsHtml}
                 ${mediaHtml}
-                ${data.text ? `<div class="msg-text">${data.text}</div>` : ''}
+                ${data.text ? `<div class="msg-text" id="msg-text-${data.message_id || ''}">${data.text}</div>` : ''}
                 <div class="msg-time">${time}</div>
             `;
             return div;
@@ -448,16 +506,21 @@
                         }
                     }
 
-                    const messageData = {
-                        'text': text,
-                        'user_id': parseInt(recipientId),
-                        ...mediaData
-                    };
+                    if (editingMessageId) {
+                        socket.emit('edit_message', {
+                            message_id: editingMessageId,
+                            text: text
+                        });
+                        editingMessageId = null;
+                    } else {
+                        const messageData = {
+                            'text': text,
+                            'user_id': parseInt(recipientId),
+                            ...mediaData
+                        };
 
-                    socket.emit('message', messageData);
-
-                    const bubble = createMessageBubble(messageData, true);
-                    messagesArea.appendChild(bubble);
+                        socket.emit('message', messageData);
+                    }
                     
                     const emptyTip = document.querySelector('.no-messages-tip');
                     if(emptyTip) emptyTip.style.display = 'none';

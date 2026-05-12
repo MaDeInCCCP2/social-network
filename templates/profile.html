@@ -201,6 +201,17 @@
                         XAM-Общения
                     </li>
                 </a>
+                <a href="{{ url_for('groups') }}" class="u-nav-link">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Сообщества
+                    </li>
+                </a>
                 <a href="{{ url_for('friends') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -271,7 +282,7 @@
 
         <main class="main-content" style="padding: 0;">
             <div class="profile-header">
-                <div class="profile-cover"></div>
+                <div class="profile-cover" {% if other_user.profile and other_user.profile.cover_photo %}style="background: url('{{ url_for('serve_image', filename=other_user.profile.cover_photo) }}') center/cover no-repeat;"{% endif %}></div>
                 <div class="profile-avatar-wrap">
                     <div class="profile-avatar">
                         {% if other_user.profile and other_user.profile.avatar %}
@@ -315,6 +326,10 @@
                             </button>
                         </form>
                         {% endif %}
+                    {% else %}
+                        <button onclick="document.getElementById('editProfileModal').style.display='flex'" class="btn-primary" style="background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); box-shadow: none;">
+                            Редактировать профиль
+                        </button>
                     {% endif %}
                 </div>
             </div>
@@ -430,7 +445,7 @@
                 </div>
 
                 <div class="profile-sidebar">
-                    <div class="glass-panel" style="padding: 32px; width: 100%;">
+                    <div class="glass-panel" style="padding: 32px; width: 100%; margin-bottom: 24px;">
                         <h3 style="margin-bottom: 24px; font-weight: 700; color: var(--primary-cyan);">Информация</h3>
                         <div class="info-group">
                             <span class="info-label">Почта</span>
@@ -446,14 +461,119 @@
                             <span class="info-value">{{ other_user.profile.city }}</span>
                         </div>
                         {% endif %}
+                        {% if other_user.profile and other_user.profile.website %}
+                        <div class="info-group">
+                            <span class="info-label">Веб-сайт</span>
+                            <span class="info-value"><a href="{{ other_user.profile.website }}" target="_blank" class="u-link-clean" style="color: var(--primary-cyan);">{{ other_user.profile.website }}</a></span>
+                        </div>
+                        {% endif %}
+                        {% if other_user.profile and other_user.profile.telegram %}
+                        <div class="info-group">
+                            <span class="info-label">Telegram</span>
+                            <span class="info-value"><a href="{{ other_user.profile.telegram }}" target="_blank" class="u-link-clean" style="color: var(--primary-cyan);">{{ other_user.profile.telegram }}</a></span>
+                        </div>
+                        {% endif %}
+                        {% if other_user.profile and other_user.profile.interests %}
+                        <div class="info-group">
+                            <span class="info-label">Интересы</span>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+                                {% for tag in other_user.profile.interests.split(',') %}
+                                <span style="background: rgba(0, 210, 255, 0.1); border: 1px solid rgba(0, 210, 255, 0.3); color: var(--primary-cyan); padding: 4px 10px; border-radius: 12px; font-size: 0.8rem;">{{ tag.strip() }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
                         <div class="info-group">
                             <span class="info-label">ID пользователя</span>
                             <span class="info-value">{{ other_user.id }}</span>
                         </div>
                     </div>
+
+                    {% if mutual_friends %}
+                    <div class="glass-panel" style="padding: 32px; width: 100%; margin-bottom: 24px;">
+                        <h3 style="margin-bottom: 16px; font-weight: 700;">Общие друзья ({{ mutual_friends|length }})</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            {% for mf in mutual_friends[:6] %}
+                            <a href="{{ url_for('profile', user_id=mf.id) }}" title="{{ mf.username }}">
+                                <div class="avatar" style="width: 40px; height: 40px; overflow: hidden; background: var(--bg-base); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold; color: var(--text-color);">
+                                    {% if mf.profile and mf.profile.avatar %}
+                                        <img src="{{ url_for('serve_image', filename=mf.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    {% else %}
+                                        {{ mf.username[0]|upper }}
+                                    {% endif %}
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user_groups %}
+                    <div class="glass-panel" style="padding: 32px; width: 100%;">
+                        <h3 style="margin-bottom: 16px; font-weight: 700;">Сообщества ({{ user_groups|length }})</h3>
+                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                            {% for g in user_groups[:3] %}
+                            <a href="{{ url_for('group_detail', group_id=g.id) }}" class="u-link-clean">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div class="avatar" style="width: 40px; height: 40px; overflow: hidden; background: var(--bg-base); display: flex; align-items: center; justify-content: center; font-size: 0.9rem; font-weight: bold; color: var(--text-color); flex-shrink: 0;">
+                                        {% if g.avatar %}
+                                            <img src="{{ url_for('serve_image', filename=g.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                        {% else %}
+                                            {{ g.name[0]|upper }}
+                                        {% endif %}
+                                    </div>
+                                    <span style="font-size: 0.9rem; color: var(--text-color);">{{ g.name }}</span>
+                                </div>
+                            </a>
+                            {% endfor %}
+                            {% if user_groups|length > 3 %}
+                            <span style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">И еще {{ user_groups|length - 3 }}...</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Edit Profile Modal -->
+    <div id="editProfileModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px);">
+        <div class="glass-panel" style="width: 100%; max-width: 500px; padding: 32px; position: relative; max-height: 90vh; overflow-y: auto;">
+            <button onclick="document.getElementById('editProfileModal').style.display='none'" style="position: absolute; top: 16px; right: 16px; background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.5rem;">&times;</button>
+            <h3 style="margin-bottom: 24px;">Редактировать профиль</h3>
+            <form action="{{ url_for('profile_edit', user_id=user.id) }}" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 16px;">
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">О себе</label>
+                    <textarea name="bio" class="post-input" rows="3" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-color); resize: vertical;">{{ user.profile.bio or '' }}</textarea>
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Город</label>
+                    <input type="text" name="city" value="{{ user.profile.city or '' }}" class="post-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-color);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Интересы (через запятую)</label>
+                    <input type="text" name="interests" value="{{ user.profile.interests or '' }}" class="post-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-color);" placeholder="Музыка, игры, программирование...">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Сайт (опционально)</label>
+                    <input type="url" name="website" value="{{ user.profile.website or '' }}" class="post-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-color);" placeholder="https://...">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Telegram (опционально)</label>
+                    <input type="text" name="telegram" value="{{ user.profile.telegram or '' }}" class="post-input" style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-color);" placeholder="https://t.me/...">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Аватар (загрузите новый для замены)</label>
+                    <input type="file" name="avatar" accept="image/*" style="width: 100%; color: var(--text-color);">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 8px; color: var(--text-muted);">Обложка профиля (загрузите новую для замены)</label>
+                    <input type="file" name="cover_photo" accept="image/*" style="width: 100%; color: var(--text-color);">
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 8px;">Сохранить изменения</button>
+            </form>
+        </div>
     </div>
 
     <!-- Edit Post Form Template (Hidden) -->
@@ -503,6 +623,26 @@
                 document.querySelectorAll('[id^="post-menu-"]').forEach(m => m.style.display = 'none');
             }
         });
+    </script>
+<script>
+    function toggleCommentMenu(id) {
+        document.querySelectorAll('[id^="comment-menu-"]').forEach(menu => {
+            if (menu.id !== 'comment-menu-' + id) menu.style.display = 'none';
+        });
+        const menu = document.getElementById('comment-menu-' + id);
+        if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    }
+
+    function startEditComment(id) {
+        document.getElementById('comment-text-' + id).style.display = 'none';
+        document.getElementById('comment-edit-form-' + id).style.display = 'block';
+        document.getElementById('comment-menu-' + id).style.display = 'none';
+    }
+
+    function cancelEditComment(id) {
+        document.getElementById('comment-text-' + id).style.display = 'block';
+        document.getElementById('comment-edit-form-' + id).style.display = 'none';
+    }
     </script>
 </body>
 </html>

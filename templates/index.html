@@ -33,6 +33,17 @@
                         XAM-Общения
                     </li>
                 </a>
+                <a href="{{ url_for('groups') }}" class="u-nav-link">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Сообщества
+                    </li>
+                </a>
                 <a href="{{ url_for('friends') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -139,19 +150,36 @@
                     <div class="glass-panel post">
                         <div class="post-header">
                             <div class="avatar" style="overflow: hidden;">
-                                {% if post.author.profile and post.author.profile.avatar %}
-                                    <img src="{{ url_for('serve_image', filename=post.author.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                {% if post.group_ref %}
+                                    {% if post.group_ref.avatar %}
+                                        <img src="{{ url_for('serve_image', filename=post.group_ref.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    {% else %}
+                                        {{ post.group_ref.name[0]|upper }}
+                                    {% endif %}
                                 {% else %}
-                                    {{ post.author.username[0]|upper }}
+                                    {% if post.author.profile and post.author.profile.avatar %}
+                                        <img src="{{ url_for('serve_image', filename=post.author.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                    {% else %}
+                                        {{ post.author.username[0]|upper }}
+                                    {% endif %}
                                 {% endif %}
                             </div>
                             <div class="post-info">
+                                {% if post.group_ref %}
+                                <a href="{{ url_for('group_detail', group_id=post.group_ref.id) }}" class="u-link-clean">
+                                    <div class="post-author" style="display: flex; align-items: center; gap: 8px;">
+                                        {{ post.group_ref.name }}
+                                        <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: normal;">(автор: {{ post.author.username }})</span>
+                                    </div>
+                                </a>
+                                {% else %}
                                 <a href="{{ url_for('profile', user_id=post.author.id) }}" class="u-link-clean">
                                     <div class="post-author" style="display: flex; align-items: center; gap: 8px;">
                                         {{ post.author.username }}
                                         <span class="status-dot {% if post.author.is_online %}online{% endif %}" title="{% if post.author.is_online %}В сети{% else %}Не в сети{% endif %}"></span>
                                     </div>
                                 </a>
+                                {% endif %}
                                 <div class="post-time">
                                     {{ (post.timestamp|localized_time(user.profile.timezone_offset)).strftime('%d.%m.%Y %H:%M') }}
                                     {% if post.is_edited %}
@@ -217,17 +245,94 @@
 
                         <div id="comments-{{ post.id }}" style="display: none; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-color);">
                             <div class="comments-list" id="comments-list-{{ post.id }}">
-                                {% for comment in post.comments %}
-                                    <div class="comment" style="margin-bottom: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 14px;">
+                                {% for comment in post.comments if not comment.parent_id %}
+                                    <div class="comment" id="comment-{{ comment.id }}" style="margin-bottom: 16px; padding: 12px 16px; background: rgba(255,255,255,0.03); border-radius: 14px; position: relative;">
                                         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
                                             <strong style="font-size: 0.9rem; color: var(--primary-cyan);">{{ comment.author.username }}</strong>
-                                            <span style="font-size: 0.75rem; color: var(--text-muted);">{{ comment.timestamp.strftime('%H:%M') }}</span>
+                                            <div style="display: flex; align-items: center; gap: 8px;">
+                                                <span style="font-size: 0.75rem; color: var(--text-muted);">{{ comment.timestamp.strftime('%H:%M') }}</span>
+                                                {% if comment.user_id == user.id or user.username == 'admin' %}
+                                                    <button class="action-btn" type="button" onclick="toggleCommentMenu('{{ comment.id }}')" style="padding: 2px;">
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                            <circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle>
+                                                        </svg>
+                                                    </button>
+                                                    <div id="comment-menu-{{ comment.id }}" class="glass-panel" style="display: none; position: absolute; right: 0; top: 30px; z-index: 100; padding: 8px; min-width: 120px; box-shadow: var(--glass-shadow);">
+                                                        {% if comment.user_id == user.id %}
+                                                        <button type="button" onclick="startEditComment('{{ comment.id }}')" style="width: 100%; text-align: left; background: none; border: none; color: #fff; padding: 8px 12px; border-radius: 8px; cursor: pointer;">✏️ Изменить</button>
+                                                        {% endif %}
+                                                        <form action="{{ url_for('delete_comment', comment_id=comment.id) }}" method="POST" onsubmit="return confirm('Удалить комментарий?')">
+                                                            <button type="submit" style="width: 100%; text-align: left; background: none; border: none; color: #ff6b6b; padding: 8px 12px; border-radius: 8px; cursor: pointer;">🗑️ Удалить</button>
+                                                        </form>
+                                                    </div>
+                                                {% endif %}
+                                            </div>
                                         </div>
-                                        <p style="font-size: 0.95rem; line-height: 1.4;">{{ comment.text }}</p>
+                                        <p id="comment-text-{{ comment.id }}" style="font-size: 0.95rem; line-height: 1.4;">{{ comment.text }}</p>
+                                        <form id="comment-edit-form-{{ comment.id }}" action="{{ url_for('edit_comment', comment_id=comment.id) }}" method="POST" style="display: none; margin-top: 8px;">
+                                            <input type="text" name="content" value="{{ comment.text }}" required style="width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--primary-cyan); padding: 8px 12px; border-radius: 8px; color: #fff; outline: none;">
+                                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                                <button type="submit" class="btn-primary" style="padding: 4px 12px; font-size: 0.8rem;">Сохранить</button>
+                                                <button type="button" onclick="cancelEditComment('{{ comment.id }}')" style="background: none; border: 1px solid var(--border-color); color: #fff; padding: 4px 12px; border-radius: 8px; cursor: pointer; font-size: 0.8rem;">Отмена</button>
+                                            </div>
+                                        </form>
+                                        <!-- Кнопки: лайк, дизлайк, ответить -->
+                                        <div style="display: flex; align-items: center; gap: 14px; margin-top: 8px;">
+                                            <button class="action-btn {% if my_comment_likes.get(comment.id) == 'like' %}active{% endif %}" onclick="likeComment('{{ comment.id }}', false)" style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; padding: 4px 8px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="{% if my_comment_likes.get(comment.id) == 'like' %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                <span id="comment-likes-{{ comment.id }}">{{ comment.likes|selectattr('is_dislike', 'false')|list|length }}</span>
+                                            </button>
+                                            <button class="action-btn {% if my_comment_likes.get(comment.id) == 'dislike' %}active{% endif %}" onclick="likeComment('{{ comment.id }}', true)" style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; padding: 4px 8px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="{% if my_comment_likes.get(comment.id) == 'dislike' %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2" style="transform: rotate(180deg);"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"></path></svg>
+                                                <span id="comment-dislikes-{{ comment.id }}">{{ comment.likes|selectattr('is_dislike', 'true')|list|length }}</span>
+                                            </button>
+                                            <button class="action-btn" onclick="showReplyForm('{{ post.id }}', '{{ comment.id }}', '{{ comment.author.username }}')" style="font-size: 0.8rem; display: flex; align-items: center; gap: 4px; padding: 4px 8px;">
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"></polyline><path d="M20 18v-2a4 4 0 0 0-4-4H4"></path></svg>
+                                                Ответить
+                                            </button>
+                                        </div>
+                                        <!-- Ответы (replies) -->
+                                        {% if comment.replies %}
+                                        <div style="margin-top: 12px; margin-left: 20px; padding-left: 12px; border-left: 2px solid rgba(0, 210, 255, 0.2);">
+                                            {% for reply in comment.replies %}
+                                            <div class="comment" id="comment-{{ reply.id }}" style="margin-bottom: 10px; padding: 10px 14px; background: rgba(255,255,255,0.02); border-radius: 12px; position: relative;">
+                                                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                                        <strong style="font-size: 0.85rem; color: var(--primary-cyan);">{{ reply.author.username }}</strong>
+                                                        <span style="font-size: 0.75rem; color: var(--text-muted);">→ {{ comment.author.username }}</span>
+                                                    </div>
+                                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                                        <span style="font-size: 0.7rem; color: var(--text-muted);">{{ reply.timestamp.strftime('%H:%M') }}</span>
+                                                        {% if reply.user_id == user.id or user.username == 'admin' %}
+                                                        <form action="{{ url_for('delete_comment', comment_id=reply.id) }}" method="POST" onsubmit="return confirm('Удалить ответ?')" style="display: inline;">
+                                                            <button type="submit" style="background: none; border: none; color: #ff6b6b; cursor: pointer; padding: 2px; font-size: 0.75rem;">✕</button>
+                                                        </form>
+                                                        {% endif %}
+                                                    </div>
+                                                </div>
+                                                <p style="font-size: 0.9rem; line-height: 1.4;">{{ reply.text }}</p>
+                                                <div style="display: flex; align-items: center; gap: 10px; margin-top: 6px;">
+                                                    <button class="action-btn {% if my_comment_likes.get(reply.id) == 'like' %}active{% endif %}" onclick="likeComment('{{ reply.id }}', false)" style="font-size: 0.75rem; display: flex; align-items: center; gap: 3px; padding: 2px 6px;">
+                                                        👍 <span id="comment-likes-{{ reply.id }}">{{ reply.likes|selectattr('is_dislike', 'false')|list|length }}</span>
+                                                    </button>
+                                                    <button class="action-btn {% if my_comment_likes.get(reply.id) == 'dislike' %}active{% endif %}" onclick="likeComment('{{ reply.id }}', true)" style="font-size: 0.75rem; display: flex; align-items: center; gap: 3px; padding: 2px 6px;">
+                                                        👎 <span id="comment-dislikes-{{ reply.id }}">{{ reply.likes|selectattr('is_dislike', 'true')|list|length }}</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
                                     </div>
                                 {% endfor %}
                             </div>
-                            <form onsubmit="submitComment(event, '{{ post.id }}')" style="display: flex; gap: 12px; margin-top: 20px;">
+                            <!-- Баннер ответа -->
+                            <div id="reply-banner-{{ post.id }}" style="display: none; background: rgba(0, 210, 255, 0.08); padding: 8px 14px; border-radius: 10px; margin-top: 12px; margin-bottom: 8px; align-items: center; justify-content: space-between;">
+                                <span style="font-size: 0.85rem; color: var(--primary-cyan);" id="reply-banner-text-{{ post.id }}"></span>
+                                <button onclick="cancelReply('{{ post.id }}')" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.1rem;">✕</button>
+                            </div>
+                            <form onsubmit="submitComment(event, '{{ post.id }}')" style="display: flex; gap: 12px; margin-top: 12px;">
+                                <input type="hidden" name="parent_id" id="reply-parent-{{ post.id }}" value="">
                                 <input type="text" name="content" placeholder="Напишите комментарий..." required style="flex: 1; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); padding: 12px 18px; border-radius: 14px; color: #fff; outline: none;">
                                 <button type="submit" class="btn-primary" style="padding: 10px 20px;">
                                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -244,6 +349,60 @@
                         <p>Будьте первым, кто создаст историю!</p>
                     </div>
                 {% endfor %}
+
+                {% if recommended_posts %}
+                <div style="margin-top: 40px; padding-top: 32px; border-top: 2px solid rgba(0, 210, 255, 0.15);">
+                    <h3 style="margin-bottom: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary-cyan)" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                        <span style="background: var(--gradient-glow); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">Рекомендации для вас</span>
+                    </h3>
+                    {% for post in recommended_posts %}
+                    <div class="glass-panel post" style="border-left: 3px solid rgba(0, 210, 255, 0.3);">
+                        <div class="post-header">
+                            <div class="avatar" style="overflow: hidden;">
+                                {% if post.author.profile and post.author.profile.avatar %}
+                                    <img src="{{ url_for('serve_image', filename=post.author.profile.avatar) }}" style="width: 100%; height: 100%; object-fit: cover;">
+                                {% else %}
+                                    {{ post.author.username[0]|upper }}
+                                {% endif %}
+                            </div>
+                            <div class="post-info">
+                                <a href="{{ url_for('profile', user_id=post.author.id) }}" class="u-link-clean">
+                                    <div class="post-author" style="display: flex; align-items: center; gap: 8px;">
+                                        {{ post.author.username }}
+                                        <span style="font-size: 0.75rem; background: rgba(0, 210, 255, 0.1); color: var(--primary-cyan); padding: 2px 8px; border-radius: 8px;">рекомендовано</span>
+                                    </div>
+                                </a>
+                                <div class="post-time">
+                                    {{ (post.timestamp|localized_time(user.profile.timezone_offset)).strftime('%d.%m.%Y %H:%M') }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="post-content">{{ post.text }}</div>
+                        {% if post.photo or post.video %}
+                            <div class="post-media">
+                                {% if post.photo %}
+                                    <img src="{{ url_for('serve_image', filename=post.photo) }}" alt="Post image" onclick="window.open(this.src)">
+                                {% endif %}
+                                {% if post.video %}
+                                    <video src="{{ url_for('serve_video', filename=post.video) }}" controls></video>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                        <div class="post-actions">
+                            <form action="{{ url_for('like_post', post_id=post.id) }}" method="POST">
+                                <button type="submit" class="action-btn {% if post.id in liked_post_ids %}active{% endif %}">
+                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="{% if post.id in liked_post_ids %}currentColor{% else %}none{% endif %}" stroke="currentColor" stroke-width="2">
+                                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                    </svg>
+                                    {{ post.likes|length }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
             </div>
         </main>
 
@@ -341,12 +500,45 @@
         function submitComment(event, postId) {
             event.preventDefault();
             const input = event.target.querySelector('input[name="content"]');
+            const parentInput = document.getElementById('reply-parent-' + postId);
             const text = input.value.trim();
             if (text) {
-                socket.emit('comment', { post_id: postId, text: text });
+                const data = { post_id: postId, text: text };
+                if (parentInput && parentInput.value) {
+                    data.parent_id = parentInput.value;
+                }
+                socket.emit('comment', data);
                 input.value = '';
+                cancelReply(postId);
             }
         }
+
+        function likeComment(commentId, isDislike) {
+            socket.emit('like_comment', { comment_id: commentId, is_dislike: isDislike });
+        }
+
+        function showReplyForm(postId, commentId, authorName) {
+            const banner = document.getElementById('reply-banner-' + postId);
+            const bannerText = document.getElementById('reply-banner-text-' + postId);
+            const parentInput = document.getElementById('reply-parent-' + postId);
+            banner.style.display = 'flex';
+            bannerText.textContent = 'Ответ для ' + authorName;
+            parentInput.value = commentId;
+        }
+
+        function cancelReply(postId) {
+            const banner = document.getElementById('reply-banner-' + postId);
+            const parentInput = document.getElementById('reply-parent-' + postId);
+            banner.style.display = 'none';
+            parentInput.value = '';
+        }
+
+        socket.on('comment_like_update', function(data) {
+            const likesEl = document.getElementById('comment-likes-' + data.comment_id);
+            const dislikesEl = document.getElementById('comment-dislikes-' + data.comment_id);
+            if (likesEl) likesEl.textContent = data.likes;
+            if (dislikesEl) dislikesEl.textContent = data.dislikes;
+        });
 
         socket.on('display_comment', function(data) {
             const list = document.getElementById(`comments-list-${data.post_id}`);
@@ -373,9 +565,45 @@
                 p.style.cssText = 'font-size: 0.95rem; line-height: 1.4;';
                 p.textContent = data.text;
                 commentDiv.appendChild(p);
-                list.appendChild(commentDiv);
+
+                if (data.parent_id) {
+                    // Ответ — добавляем в контейнер replies
+                    const parentComment = document.getElementById('comment-' + data.parent_id);
+                    if (parentComment) {
+                        let repliesDiv = parentComment.querySelector('[style*="border-left: 2px solid rgba(0, 210, 255"]');
+                        if (!repliesDiv) {
+                            repliesDiv = document.createElement('div');
+                            repliesDiv.style.cssText = 'margin-top: 12px; margin-left: 20px; padding-left: 12px; border-left: 2px solid rgba(0, 210, 255, 0.2);';
+                            parentComment.appendChild(repliesDiv);
+                        }
+                        repliesDiv.appendChild(commentDiv);
+                    } else {
+                        list.appendChild(commentDiv);
+                    }
+                } else {
+                    list.appendChild(commentDiv);
+                }
             }
         });
+
+        function toggleCommentMenu(id) {
+            document.querySelectorAll('[id^="comment-menu-"]').forEach(menu => {
+                if (menu.id !== 'comment-menu-' + id) menu.style.display = 'none';
+            });
+            const menu = document.getElementById('comment-menu-' + id);
+            if (menu) menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function startEditComment(id) {
+            document.getElementById('comment-text-' + id).style.display = 'none';
+            document.getElementById('comment-edit-form-' + id).style.display = 'block';
+            document.getElementById('comment-menu-' + id).style.display = 'none';
+        }
+
+        function cancelEditComment(id) {
+            document.getElementById('comment-text-' + id).style.display = 'block';
+            document.getElementById('comment-edit-form-' + id).style.display = 'none';
+        }
     </script>
 </body>
 </html>
