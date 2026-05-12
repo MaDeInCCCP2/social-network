@@ -279,6 +279,16 @@ def handle_message(data):
             'is_ai': False
         }, to=str(user_id))
 
+        if str(user_id) != str(current_user.id):
+            socketio.emit('display_message', {
+                'message_id': new_msg.id,
+                'sender_id': current_user.id,
+                'text': text,
+                'image': image,
+                'video': video,
+                'is_ai': False
+            }, to=str(current_user.id))
+
 
 @socketio.on('delete_message')
 def handle_delete_message(data):
