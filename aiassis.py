@@ -4,14 +4,15 @@ import flask
 from flask import Blueprint, request, jsonify
 from flask_login import login_required, current_user
 import google.genai as genai
-from google.genai import types
 import os
 import base64
+import uuid
+import re
+import traceback
 from dotenv import load_dotenv
 from openai import OpenAI
 
 ai_bp = Blueprint('ai', __name__)
-
 load_dotenv()
 
 nvidia_client = OpenAI(
@@ -19,7 +20,8 @@ nvidia_client = OpenAI(
     api_key=os.getenv("NVIDIA_API_KEY")
 )
 
-# Клиент Google остается в коде, но пока не используется в функциях
+
+
 try:
     client = genai.Client(
         vertexai=True,
@@ -28,48 +30,50 @@ try:
 except Exception:
     client = None
 
-API_BASE = "https://api.krea.ai"
-
 def get_bot_response(user_message):
     systemprompt = (
-        'Ты — XAM AI Ассистент. '
-        'Доступны инструменты: '
-        'get_friends_list(), '
-        'create_post({"text": "..."}), '
-        'send_comment({"post_id": ID, "text": "..."}), '
-        'generate_image({"text": "описание для рисования"}). '
-        'Если пользователь просит что-то нарисовать или создать картинку, '
-        'пиши СТРОГО: [TOOL_CALL: generate_image({"text": "промпт на английском"})]. '
-        'Аргументы — только валидный JSON. Иначе — просто текст.'
+        "Ты — XAM AI, вежливый и полезный ИИ-ассистент.\n"
+        "У тебя есть доступ к внутренним инструментам:\n"
+        "- create_post({\"text\": \"текст\"})\n"
+        "- get_friends_list()\n"
+        "Чтобы вызвать инструмент, верни ответ ТОЛЬКО в формате: [TOOL_CALL: tool_name(args)]\n"
     )
+    
     try:
         completion = nvidia_client.chat.completions.create(
-            model="moonshotai/kimi-k2-instruct-0905",
+            model="moonshotai/kimi-k2.6", # Возвращаем вашу модель!
             messages=[
                 {"role": "system", "content": systemprompt},
                 {"role": "user", "content": user_message}
             ],
-            temperature=0.5,
+            temperature=0.3, # Снижаем фантазию, чтобы она точно выдала скобки
             top_p=1,
             max_tokens=1024,
             timeout=60 
         )
         response_text = completion.choices[0].message.content
     except Exception as e:
-        return f"Ошибка LLM (NVIDIA): {e}"
+        print(f"❌ Ошибка LLM: {e}", flush=True)
+        return f"Ошибка LLM: {e}"
 
     if "[TOOL_CALL:" in response_text:
+        print(f"🤖 Kimi вызывает инструмент: {response_text.strip()}", flush=True)
         try:
-            tool_call = response_text.split("[TOOL_CALL:")[1].split("]")[0]
-            tool_name = tool_call.split("(")[0].strip()
-            tool_args_str = tool_call.split("(")[1].split(")")[0].strip()
-            tool_args = json.loads(tool_args_str) if tool_args_str else {}
-            return run_tools(tool_name, tool_args)
+            match = re.search(r'\[TOOL_CALL:\s*([a-zA-Z0-9_]+)\((.*?)\)\]', response_text)
+            if match:
+                tool_name = match.group(1).strip()
+                tool_args_str = match.group(2).strip()
+                
+                tool_args = json.loads(tool_args_str) if tool_args_str else {}
+                return run_tools(tool_name, tool_args)
+            else:
+                return "Ошибка: неверный формат вызова инструмента."
+        except json.JSONDecodeError:
+            return "Ошибка: Kimi сгенерировала невалидный JSON."
         except Exception as e:
             return f"Ошибка инструментов: {e}"
             
     return response_text
-
 
 @ai_bp.route('/chat', methods=['POST'])
 @login_required
@@ -102,78 +106,15 @@ def bot_send_comment(post_id, text):
         db.session.commit()
     return 'Комментарий создан'
 
-def generate_image(prompt):
-    import time
-    api_key = os.getenv('IMAGE_API_KEY') 
-    if not api_key:
-        return "Ошибка: Не найден IMAGE_API_KEY в .env"
-        
-    try:
-        url = f"{API_BASE}/generate/image/google/nano-banana-pro"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "prompt": prompt,
-            "width": 512,
-            "height": 512,
-            "num_images": 1,
-            "aspect_ratio": "1:1"
-        }
-        
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        
-        if response.status_code != 200:
-            return f"Ошибка Krea (POST {response.status_code}): {response.text}"
-            
-        job_id = response.json().get("job_id")
-        if not job_id:
-            return "Ошибка: Сервер не вернул job_id"
-            
-        for _ in range(30): 
-            time.sleep(2) 
-            try:
-                status_resp = requests.get(
-                    f"{API_BASE}/jobs/{job_id}",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    timeout=10
-                )
-                if status_resp.status_code == 200:
-                    result_data = status_resp.json()
-                    status = result_data.get("status")
-                    if status == "completed":
-                        urls = result_data.get("result", {}).get("urls", [])
-                        return urls[0] if urls else "Ошибка: Список URL пуст"
-                    elif status == "failed":
-                        return "Ошибка: Генерация на сервере провалена"
-            except Exception:
-                pass
-                    
-        return "Ошибка: Превышено время ожидания картинки"
-        
-    except Exception as e:
-        return f"Ошибка генерации (Krea): {e}"
-
-def server_error():
-    if genai.errors.server_error == True:
-        return 'Сервер временно перегружен, попробуйте позже'
-    if genai.errors.rate_limit_error == True:
-        return 'Сервер временно перегружен, попробуйте позже'
-    if genai.types.GenerateContentResponse.prompt_feedback.block_reason == True:
-        return 'Я не могу ответить на этот запрос'
-
 def run_tools(tool_name, tool_args):
+    print(f"🛠 Запуск инструмента: {tool_name} с аргументами {tool_args}", flush=True)
+    
     if tool_name == 'get_friends_list':
         return bot_get_friends_list()
     elif tool_name == 'create_post':
         return bot_create_post(tool_args.get('text', ''))
     elif tool_name == 'send_comment':
         return bot_send_comment(tool_args.get('post_id'), tool_args.get('text', ''))
-    elif tool_name == 'generate_image':
-        img_url = generate_image(tool_args.get('text', ''))
-        if img_url:
-            return {"image_url": img_url, "text": f"Изображение создано: {tool_args.get('text')}"}
-        return "Извините, не удалось сгенерировать изображение."
+
     else:
         return 'Неизвестный инструмент'

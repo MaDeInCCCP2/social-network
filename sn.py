@@ -68,6 +68,7 @@ class Post(db.Model):
     text = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=True)
     photo = db.Column(db.String(256), nullable=True)
     video = db.Column(db.String(256), nullable=True)
     is_edited = db.Column(db.Boolean, default=False)
@@ -87,7 +88,9 @@ class Comment(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
     likes = db.relationship('CommentLike', backref='comment', lazy=True, cascade="all, delete-orphan")
+    replies = db.relationship('Comment', backref=db.backref('parent', remote_side=[id]), lazy=True, cascade="all, delete-orphan")
     
     author = db.relationship('User')
 
@@ -125,7 +128,11 @@ class Profile(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     bio = db.Column(db.Text, nullable=True)
     avatar = db.Column(db.String(256), nullable=True)
+    cover_photo = db.Column(db.String(256), nullable=True)
+    website = db.Column(db.String(128), nullable=True)
+    telegram = db.Column(db.String(128), nullable=True)
     city = db.Column(db.String(128))
+    interests = db.Column(db.String(256), nullable=True)
     timezone_offset = db.Column(db.Integer, default=0) # Смещение от UTC
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
     user = db.relationship('User', backref=db.backref('profile', uselist=False))
@@ -141,6 +148,27 @@ class Sticker(db.Model):
     pack_id = db.Column(db.Integer, db.ForeignKey('sticker_pack.id'), nullable=False)
     filename = db.Column(db.String(256), nullable=False)
 
+class Group(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    avatar = db.Column(db.String(256), nullable=True)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    creator = db.relationship('User', backref=db.backref('created_groups', lazy=True))
+    members = db.relationship('GroupMember', backref='group', lazy=True, cascade="all, delete-orphan")
+    posts = db.relationship('Post', backref='group_ref', lazy=True, cascade="all, delete-orphan")
+
+class GroupMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey('group.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    role = db.Column(db.String(20), default='member') # 'member', 'admin', 'creator'
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('group_memberships', lazy=True))
+
 class Friends(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -151,6 +179,7 @@ class CommentLike(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     comment_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=False)
+    is_dislike = db.Column(db.Boolean, default=False)
 
 def proccess_mentions(text):
     mentions = re.findall(r'@(\w+)', text)
@@ -211,22 +240,28 @@ def handle_message(data):
             if isinstance(bot_response, dict) and 'image_url' in bot_response:
                 bot_msg.text = bot_response.get('text')
                 bot_msg.image = bot_response.get('image_url')
-                bot_msg.is_ai_image = True
+                bot_msg.isai_image = True
+            else:
+                bot_msg.text = bot_response
+
+            db.session.add(bot_msg)
+            db.session.commit()
+
+            if isinstance(bot_response, dict) and 'image_url' in bot_response:
                 socketio.emit('display_message', {
+                    'message_id': bot_msg.id,
                     'sender_id': bot.id,
                     'text': bot_msg.text,
                     'image': bot_msg.image,
                     'is_ai': True
                 }, to=str(current_user.id))
             else:
-                bot_msg.text = bot_response
                 socketio.emit('display_message', {
+                    'message_id': bot_msg.id,
                     'sender_id': bot.id,
                     'text': bot_msg.text,
                     'is_ai': True
                 }, to=str(current_user.id))
-            db.session.add(bot_msg)
-            db.session.commit()
         else:
             new_msg.is_ai = False
             
@@ -236,12 +271,36 @@ def handle_message(data):
             new_msg.is_friend = False
             
         socketio.emit('display_message', {
+            'message_id': new_msg.id,
             'sender_id': current_user.id,
             'text': text,
             'image': image,
             'video': video,
             'is_ai': False
         }, to=str(user_id))
+
+
+@socketio.on('delete_message')
+def handle_delete_message(data):
+    msg_id = data.get('message_id')
+    msg = Message.query.get(msg_id)
+    if msg and msg.sender_id == current_user.id:
+        partner_id = msg.receiver_id
+        db.session.delete(msg)
+        db.session.commit()
+        socketio.emit('message_deleted', {'message_id': msg_id}, to=str(partner_id))
+        socketio.emit('message_deleted', {'message_id': msg_id}, to=str(current_user.id))
+
+@socketio.on('edit_message')
+def handle_edit_message(data):
+    msg_id = data.get('message_id')
+    new_text = data.get('text', '').strip()
+    msg = Message.query.get(msg_id)
+    if msg and msg.sender_id == current_user.id and new_text:
+        msg.text = new_text
+        db.session.commit()
+        socketio.emit('message_edited', {'message_id': msg_id, 'text': new_text}, to=str(msg.receiver_id))
+        socketio.emit('message_edited', {'message_id': msg_id, 'text': new_text}, to=str(current_user.id))
 
 @app.route('/messages/upload', methods=['POST'])
 @login_required
@@ -253,10 +312,10 @@ def upload_message_file():
     ext = file.filename.split('.')[-1].lower()
     filename = str(uuid.uuid4()) + "." + ext
     
-    if ext in ['jpg', 'jpeg', 'png', 'gif']:
+    if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
         file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
         return {'filename': filename, 'type': 'image'}
-    elif ext in ['mp4', 'avi', 'mov', 'mkv']:
+    elif ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp']:
         file.save(os.path.join(app.config['UPLOAD_VIDEO'], filename))
         return {'filename': filename, 'type': 'video'}
     
@@ -296,7 +355,7 @@ def upload_sticker():
         
     ext = file.filename.split('.')[-1].lower()
     
-    if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+    if ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
         return {'error': 'Invalid file type'}, 400
         
     filename = f"{category}_{uuid.uuid4()}.{ext}"
@@ -309,8 +368,11 @@ def handle_comment(data):
     text = data.get('text', '').strip()
     text = proccess_mentions(text)
     post_id = data.get('post_id')
+    parent_id = data.get('parent_id')
+    if parent_id and not str(parent_id).isdigit():
+        parent_id = None
     if text and post_id:
-        comment = Comment(text=text, user_id=current_user.id, post_id=post_id)
+        comment = Comment(text=text, user_id=current_user.id, post_id=post_id, parent_id=parent_id)
         db.session.add(comment)
         db.session.commit()
         
@@ -319,7 +381,9 @@ def handle_comment(data):
             'post_id': post_id,
             'text': text,
             'author': current_user.username,
-            'timestamp': datetime.utcnow().strftime('%H:%M')
+            'timestamp': datetime.utcnow().strftime('%H:%M'),
+            'parent_id': parent_id,
+            'comment_id': comment.id
         }, room=f"post_{post_id}")
     if "@XAM_AI" in text:
         bot = User.query.filter_by(username="XAM_AI").first()
@@ -332,35 +396,41 @@ def handle_comment(data):
             'post_id': post_id,
             'text': reply,
             'author': bot.username,
-            'timestamp': datetime.utcnow().strftime('%H:%M')
+            'timestamp': datetime.utcnow().strftime('%H:%M'),
+            'comment_id': comment_by_bot.id
         }, room=f"post_{post_id}")
 
 @socketio.on('like_comment')
 def handle_like_comment(data):
     comment_id = data.get('comment_id')
+    is_dislike = data.get('is_dislike', False)
     if comment_id:
         comment = Comment.query.get(comment_id)
         if comment:
             like = CommentLike.query.filter_by(user_id=current_user.id, comment_id=comment_id).first()
             if like:
-                db.session.delete(like)
+                if like.is_dislike == is_dislike:
+                    db.session.delete(like)
+                    action = 'unliked' if not is_dislike else 'undisliked'
+                else:
+                    like.is_dislike = is_dislike
+                    action = 'disliked' if is_dislike else 'liked'
                 db.session.commit()
-                socketio.emit('comment_like_update', {
-                    'comment_id': comment_id,
-                    'count': len(comment.likes),
-                    'user_id': current_user.id,
-                    'action': 'unliked'
-                }, room=f"post_{comment.post_id}")
             else:
-                like = CommentLike(user_id=current_user.id, comment_id=comment_id)
+                like = CommentLike(user_id=current_user.id, comment_id=comment_id, is_dislike=is_dislike)
                 db.session.add(like)
                 db.session.commit()
-                socketio.emit('comment_like_update', {
-                    'comment_id': comment_id,
-                    'count': len(comment.likes),
-                    'user_id': current_user.id,
-                    'action': 'liked'
-                }, room=f"post_{comment.post_id}")
+                action = 'disliked' if is_dislike else 'liked'
+            
+            likes_count = len([l for l in comment.likes if not l.is_dislike])
+            dislikes_count = len([l for l in comment.likes if l.is_dislike])
+            socketio.emit('comment_like_update', {
+                'comment_id': comment_id,
+                'likes': likes_count,
+                'dislikes': dislikes_count,
+                'user_id': current_user.id,
+                'action': action
+            }, room=f"post_{comment.post_id}")
 
 @socketio.on('join_post')
 def on_join_post(data):
@@ -384,9 +454,43 @@ def load_user(user_id):
 @app.route('/') # главная страница
 @login_required
 def index():
-    posts = Post.query.order_by(Post.timestamp.desc()).all()
+    my_group_ids = [m.group_id for m in GroupMember.query.filter_by(user_id=current_user.id).all()]
+    if my_group_ids:
+        posts = Post.query.filter((Post.group_id == None) | (Post.group_id.in_(my_group_ids))).order_by(Post.timestamp.desc()).all()
+    else:
+        posts = Post.query.filter_by(group_id=None).order_by(Post.timestamp.desc()).all()
     liked_post_ids = [like.post_id for like in Like.query.filter_by(user_id=current_user.id).all()]
-    return render_template('index.html', user=current_user, posts=posts, liked_post_ids=liked_post_ids)
+    
+    # Система рекомендаций на основе интересов
+    recommended_posts = []
+    my_interests = []
+    if current_user.profile and current_user.profile.interests:
+        my_interests = [t.strip().lower() for t in current_user.profile.interests.split(',') if t.strip()]
+    
+    if my_interests:
+        # Находим пользователей с похожими интересами
+        all_profiles = Profile.query.filter(Profile.interests != None, Profile.interests != '', Profile.user_id != current_user.id).all()
+        matching_user_ids = set()
+        for p in all_profiles:
+            other_tags = [t.strip().lower() for t in p.interests.split(',') if t.strip()]
+            if set(my_interests) & set(other_tags):
+                matching_user_ids.add(p.user_id)
+        
+        if matching_user_ids:
+            existing_post_ids = {p.id for p in posts}
+            rec = Post.query.filter(
+                Post.user_id.in_(matching_user_ids),
+                ~Post.id.in_(existing_post_ids)
+            ).order_by(Post.timestamp.desc()).limit(10).all()
+            recommended_posts = rec
+    
+    # Лайки/дизлайки комментариев для текущего пользователя
+    my_comment_likes = {}
+    for cl in CommentLike.query.filter_by(user_id=current_user.id).all():
+        my_comment_likes[cl.comment_id] = 'dislike' if cl.is_dislike else 'like'
+    
+    return render_template('index.html', user=current_user, posts=posts, liked_post_ids=liked_post_ids,
+                           recommended_posts=recommended_posts, my_comment_likes=my_comment_likes)
 
 @app.route('/new_post', methods=['POST']) # посты с видео и изображениями
 @login_required
@@ -399,13 +503,13 @@ def new_post():
     video_filename = None
     if file and file.filename != '':
         ext = file.filename.split('.')[-1].lower()
-        if ext in ['jpg', 'jpeg', 'png', 'gif']:
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
             image_filename = str(uuid.uuid4()) + "." + ext
             file.save(os.path.join(app.config['UPLOAD_IMAGE'], image_filename))
     
     if video and video.filename != '':
         ext = video.filename.split('.')[-1].lower()
-        if ext in ['mp4', 'avi', 'mov', 'mkv']:
+        if ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp']:
             video_filename = str(uuid.uuid4()) + "." + ext
             video.save(os.path.join(app.config['UPLOAD_VIDEO'], video_filename))
 
@@ -461,11 +565,36 @@ def like_post(post_id):
 @login_required
 def comment_post(post_id):
     text = request.form.get('content', '').strip()
+    parent_id = request.form.get('parent_id')
+    if parent_id and not str(parent_id).isdigit():
+        parent_id = None
     if text:
-        comment = Comment(text=text, user_id=current_user.id, post_id=post_id)
+        comment = Comment(text=text, user_id=current_user.id, post_id=post_id, parent_id=parent_id)
         db.session.add(comment)
         db.session.commit()
-    return redirect(url_for('index'))
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/comment/delete/<int:comment_id>', methods=['POST'])
+@login_required
+def delete_comment(comment_id):
+    c = Comment.query.get_or_404(comment_id)
+    if c.user_id == current_user.id or current_user.username == 'admin':
+        db.session.delete(c)
+        db.session.commit()
+    else:
+        flash('У вас нет прав для удаления этого комментария!', 'danger')
+    return redirect(request.referrer or url_for('index'))
+
+@app.route('/comment/edit/<int:comment_id>', methods=['POST'])
+@login_required
+def edit_comment(comment_id):
+    c = Comment.query.get_or_404(comment_id)
+    new_text = request.form.get('content', '').strip()
+    if c.user_id == current_user.id and new_text:
+        c.text = new_text
+        db.session.commit()
+    return redirect(request.referrer or url_for('index'))
+
 
 @app.route('/image/<path:filename>') # картинки
 def serve_image(filename):
@@ -614,33 +743,56 @@ def friends():
 def messages():
     return render_template('messages.html', user=current_user)
 
-@app.route('/messages/<int:user_id>', methods=['GET', 'POST']) # отправление сообщений и отображение переписки
+@app.route('/messages/<int:user_id>', methods=['GET', 'POST'])
 @login_required
 def messages_userid(user_id):
     if request.method == 'POST':
         text = request.form.get('message', '').strip()
-        if text:
+        file = request.files.get('image')
+        video = request.files.get('video')
+        
+        if text or file or video:
             new_msg = Message()
             new_msg.sender_id = current_user.id
             new_msg.receiver_id = user_id
             new_msg.text = text
-            file = request.files.get('image')
-            video = request.files.get('video')
+            
             if file:
                 new_msg.image = file.filename
                 file.save(os.path.join(app.config['UPLOAD_IMAGE'], file.filename))
-                if User.query.filter_by(username="XAM_AI").first() == True:
-                    new_msg.isai_image = True
             if video:
                 new_msg.video = video.filename
                 video.save(os.path.join(app.config['UPLOAD_VIDEO'], video.filename))
+                
             friend = Friends.query.filter_by(user_id=current_user.id, friend_id=user_id).first()
-            if friend:
-                new_msg.friend = True
-            else:
-                new_msg.friend = False
+            new_msg.is_friend = True if friend else False
+            
             db.session.add(new_msg)
             db.session.commit()
+
+            # --- ДОБАВЛЯЕМ ВЫЗОВ ИИ СЮДА ---
+            bot = User.query.filter_by(username="XAM_AI").first()
+            if bot and user_id == bot.id and text:
+                # Получаем ответ от ИИ
+                bot_response = get_bot_response(text)
+                
+                bot_msg = Message()
+                bot_msg.sender_id = bot.id
+                bot_msg.receiver_id = current_user.id
+                bot_msg.is_ai = True
+                
+                # Проверяем, вернул ли ИИ словарь с картинкой
+                if isinstance(bot_response, dict) and 'image_url' in bot_response:
+                    bot_msg.text = bot_response.get('text')
+                    bot_msg.image = bot_response.get('image_url')
+                    bot_msg.isai_image = True
+                else:
+                    bot_msg.text = str(bot_response)
+
+                db.session.add(bot_msg)
+                db.session.commit()
+            # -------------------------------
+
     messages = Message.query.filter_by(sender_id=current_user.id, receiver_id=user_id).all()
     messages = messages + Message.query.filter_by(sender_id=user_id, receiver_id=current_user.id).all()
     messages = sorted(messages, key=lambda x: x.timestamp)
@@ -650,8 +802,16 @@ def messages_userid(user_id):
 @login_required
 def profile(user_id):
     u = User.query.get_or_404(user_id)
-    p = Post.query.filter_by(user_id=user_id).order_by(Post.timestamp.desc()).all()
-    return render_template('profile.html', user=current_user, other_user=u, posts=p)
+    p = Post.query.filter_by(user_id=user_id, group_id=None).order_by(Post.timestamp.desc()).all()
+    user_groups = Group.query.join(GroupMember).filter(GroupMember.user_id == user_id).all()
+    mutual_friends = []
+    if current_user.id != user_id:
+        my_friends = set(f.friend_id if f.user_id == current_user.id else f.user_id for f in Friends.query.filter(((Friends.user_id == current_user.id) | (Friends.friend_id == current_user.id)) & (Friends.status == 'accepted')).all())
+        their_friends = set(f.friend_id if f.user_id == user_id else f.user_id for f in Friends.query.filter(((Friends.user_id == user_id) | (Friends.friend_id == user_id)) & (Friends.status == 'accepted')).all())
+        mutual_ids = my_friends.intersection(their_friends)
+        if mutual_ids:
+            mutual_friends = User.query.filter(User.id.in_(mutual_ids)).all()
+    return render_template('profile.html', user=current_user, other_user=u, posts=p, user_groups=user_groups, mutual_friends=mutual_friends)
 
 @app.route('/profile/<int:user_id>/friends') # отображение друзей в профиле
 @login_required
@@ -660,20 +820,41 @@ def profile_friends(user_id):
     f = Friends.query.filter_by(user_id=user_id).all()
     return render_template('profile.html', user=current_user, other_user=u, friends=f)
 
-@app.route('/profile/<int:user_id>/edit', methods=['GET', 'POST']) # редактирование профиля
+@app.route('/profile/<int:user_id>/edit', methods=['POST'])
 @login_required
 def profile_edit(user_id):
-    u = User.query.get_or_404(user_id)
-    if u.id != current_user.id:
+    if user_id != current_user.id:
         flash('Вы не можете редактировать профиль другого пользователя!', 'danger')
         return redirect(url_for('profile', user_id=user_id))
-    if request.method == 'POST':
-        u.name = request.form.get('name')
-        u.bio = request.form.get('bio')
-        db.session.add(u)
-        db.session.commit()
-        flash('Профиль успешно обновлен!', 'success')
-    return render_template('profile.html', user=current_user, other_user=u)
+    
+    if not current_user.profile:
+        current_user.profile = Profile(user_id=current_user.id)
+        db.session.add(current_user.profile)
+        
+    current_user.profile.bio = request.form.get('bio', '')
+    current_user.profile.city = request.form.get('city', '')
+    current_user.profile.website = request.form.get('website', '')
+    current_user.profile.telegram = request.form.get('telegram', '')
+    
+    avatar_file = request.files.get('avatar')
+    if avatar_file and avatar_file.filename != '':
+        ext = avatar_file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
+            filename = str(uuid.uuid4()) + "." + ext
+            avatar_file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
+            current_user.profile.avatar = filename
+            
+    cover_file = request.files.get('cover_photo')
+    if cover_file and cover_file.filename != '':
+        ext = cover_file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
+            filename = str(uuid.uuid4()) + "." + ext
+            cover_file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
+            current_user.profile.cover_photo = filename
+
+    db.session.commit()
+    flash('Профиль успешно обновлен!', 'success')
+    return redirect(url_for('profile', user_id=user_id))
 
 @app.route('/friends/add/<int:user_id>', methods=['POST']) # система добавления друзей
 @login_required
@@ -766,13 +947,14 @@ def update_profile():
     # Обновление текстовых данных
     profile.bio = request.form.get('bio', '')
     profile.city = request.form.get('city', '')
+    profile.interests = request.form.get('interests', '')
     profile.timezone_offset = int(request.form.get('timezone_offset', 0))
 
     # Обработка аватара
     file = request.files.get('avatar')
     if file and file.filename != '':
         ext = file.filename.split('.')[-1].lower()
-        if ext in ['jpg', 'jpeg', 'png', 'gif']:
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
             filename = str(uuid.uuid4()) + "." + ext
             file.save(os.path.join(app.config['UPLOAD_IMAGE'], filename))
             profile.avatar = filename
@@ -781,10 +963,129 @@ def update_profile():
     flash('Профиль успешно обновлен!', 'success')
     return redirect(url_for('settings'))
 
-@app.route('/groups') # группы (в будущем)
+@app.route('/groups') # группы
 @login_required
 def groups():
-    return render_template('group.html', user=current_user)
+    my_groups = Group.query.join(GroupMember).filter(GroupMember.user_id == current_user.id).all()
+    all_groups = Group.query.all()
+    return render_template('group.html', user=current_user, my_groups=my_groups, all_groups=all_groups)
+
+@app.route('/group/create', methods=['POST'])
+@login_required
+def create_group():
+    name = request.form.get('name', '').strip()
+    description = request.form.get('description', '').strip()
+    file = request.files.get('avatar')
+    
+    if not name:
+        flash('Имя группы обязательно', 'danger')
+        return redirect(url_for('groups'))
+        
+    avatar_filename = None
+    if file and file.filename != '':
+        ext = file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
+            avatar_filename = str(uuid.uuid4()) + "." + ext
+            file.save(os.path.join(app.config['UPLOAD_IMAGE'], avatar_filename))
+            
+    new_group = Group(name=name, description=description, avatar=avatar_filename, creator_id=current_user.id)
+    db.session.add(new_group)
+    db.session.commit()
+    
+    member = GroupMember(group_id=new_group.id, user_id=current_user.id, role='creator')
+    db.session.add(member)
+    db.session.commit()
+    
+    flash('Сообщество создано!', 'success')
+    return redirect(url_for('group_detail', group_id=new_group.id))
+
+@app.route('/group/<int:group_id>')
+@login_required
+def group_detail(group_id):
+    group = Group.query.get_or_404(group_id)
+    posts = Post.query.filter_by(group_id=group_id).order_by(Post.timestamp.desc()).all()
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    liked_post_ids = [like.post_id for like in Like.query.filter_by(user_id=current_user.id).all()]
+    return render_template('group_detail.html', user=current_user, group=group, posts=posts, member=member, liked_post_ids=liked_post_ids)
+
+@app.route('/group/<int:group_id>/join', methods=['POST'])
+@login_required
+def join_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not member:
+        new_member = GroupMember(group_id=group.id, user_id=current_user.id, role='member')
+        db.session.add(new_member)
+        db.session.commit()
+        flash('Вы вступили в сообщество!', 'success')
+    return redirect(url_for('group_detail', group_id=group_id))
+
+@app.route('/group/<int:group_id>/leave', methods=['POST'])
+@login_required
+def leave_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if member and member.role != 'creator':
+        db.session.delete(member)
+        db.session.commit()
+        flash('Вы покинули сообщество.', 'success')
+    return redirect(url_for('group_detail', group_id=group_id))
+
+@app.route('/group/<int:group_id>/edit', methods=['POST'])
+@login_required
+def edit_group(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not member or member.role not in ['admin', 'creator']:
+        flash('У вас нет прав.', 'danger')
+        return redirect(url_for('group_detail', group_id=group_id))
+        
+    group.name = request.form.get('name', group.name).strip()
+    group.description = request.form.get('description', group.description).strip()
+    file = request.files.get('avatar')
+    if file and file.filename != '':
+        ext = file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
+            avatar_filename = str(uuid.uuid4()) + "." + ext
+            file.save(os.path.join(app.config['UPLOAD_IMAGE'], avatar_filename))
+            group.avatar = avatar_filename
+            
+    db.session.commit()
+    flash('Сообщество обновлено!', 'success')
+    return redirect(url_for('group_detail', group_id=group_id))
+
+@app.route('/group/<int:group_id>/new_post', methods=['POST'])
+@login_required
+def new_group_post(group_id):
+    group = Group.query.get_or_404(group_id)
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=current_user.id).first()
+    if not member or member.role not in ['admin', 'creator']:
+        flash('Только администраторы могут публиковать записи от имени сообщества.', 'danger')
+        return redirect(url_for('group_detail', group_id=group_id))
+        
+    text = request.form.get('content', '').strip()
+    text = text[:250]
+    file = request.files.get('image')
+    video = request.files.get('video')
+    image_filename = None
+    video_filename = None
+    if file and file.filename != '':
+        ext = file.filename.split('.')[-1].lower()
+        if ext in ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic', 'tiff']:
+            image_filename = str(uuid.uuid4()) + "." + ext
+            file.save(os.path.join(app.config['UPLOAD_IMAGE'], image_filename))
+    
+    if video and video.filename != '':
+        ext = video.filename.split('.')[-1].lower()
+        if ext in ['mp4', 'avi', 'mov', 'mkv', 'webm', 'flv', 'wmv', 'm4v', '3gp']:
+            video_filename = str(uuid.uuid4()) + "." + ext
+            video.save(os.path.join(app.config['UPLOAD_VIDEO'], video_filename))
+
+    if text or image_filename or video_filename:
+        post = Post(text=text, user_id=current_user.id, group_id=group.id, photo=image_filename, video=video_filename)
+        db.session.add(post)
+        db.session.commit()
+    return redirect(url_for('group_detail', group_id=group_id))
 
 @app.route('/settings') # настройки (пока не доделаны)
 @login_required
@@ -845,4 +1146,4 @@ if __name__ == '__main__': # запуск сайта
         if users_without_profiles:
             db.session.commit()
             print(f"--- Создано {len(users_without_profiles)} недостающих профилей ---")
-    app.run(debug=True, host='0.0.0.0')
+    socketio.run(app, debug=True, host='0.0.0.0', allow_unsafe_werkzeug=True)

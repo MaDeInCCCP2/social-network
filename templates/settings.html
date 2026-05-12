@@ -31,6 +31,17 @@
                         XAM-Общения
                     </li>
                 </a>
+                <a href="{{ url_for('groups') }}" class="u-nav-link">
+                    <li class="nav-item">
+                        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        Сообщества
+                    </li>
+                </a>
                 <a href="{{ url_for('friends') }}" class="u-nav-link">
                     <li class="nav-item">
                         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -148,6 +159,12 @@
                         <div class="input-group" style="margin-bottom: 24px;">
                             <label style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block;">Город</label>
                             <input type="text" name="city" placeholder="Например: Москва" value="{{ user.profile.city if user.profile and user.profile.city else '' }}" style="width: 100%; padding: 14px 18px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: #fff; outline: none; transition: var(--transition-smooth);">
+                        </div>
+
+                        <div class="input-group" style="margin-bottom: 24px;">
+                            <label style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; display: block;">Интересы (через запятую)</label>
+                            <input type="text" name="interests" placeholder="Музыка, игры, программирование, кино..." value="{{ user.profile.interests if user.profile and user.profile.interests else '' }}" style="width: 100%; padding: 14px 18px; border-radius: 14px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: #fff; outline: none; transition: var(--transition-smooth);">
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 6px;">Используется для рекомендаций</p>
                         </div>
 
                         <div class="input-group" style="margin-bottom: 32px;">

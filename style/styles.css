@@ -565,6 +565,8 @@ a:hover {
     overflow: visible; /* Изменено с hidden, чтобы пикер не обрезался */
     position: relative;
     box-shadow: var(--glass-shadow);
+    height: 100%;
+    min-height: 0;
 }
 
 .chat-header {
@@ -618,6 +620,40 @@ a:hover {
     border: 1px solid var(--border-color);
     color: #fff;
     border-bottom-left-radius: 4px;
+}
+
+.msg-actions {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    display: none;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 4px;
+    border-radius: 8px;
+    backdrop-filter: blur(4px);
+    border: 1px solid var(--border-color);
+}
+
+.message-bubble:hover .msg-actions {
+    display: flex;
+}
+
+.msg-actions button {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.msg-actions button:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .chat-input-area {
